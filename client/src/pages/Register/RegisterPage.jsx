@@ -11,7 +11,7 @@ function Register() {
     <div className="bg-primary flex items-center justify-center h-screen">
       <div className="card w-800 p-2">
         <div className="flex items-center justify-between">
-          <h1 className="text-xl">WALLETXCHAGE - REGISTER</h1>
+          <h1 className="text-xl">WALLETXCHANGE - REGISTER</h1>
         </div>
         <hr />
         <Form layout="vertical" onFinish={onFinish} autoComplete="off">

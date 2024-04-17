@@ -1,10 +1,22 @@
-import { Col, Form, Row, Input, Select } from "antd";
+import { Col, Form, Row, Input, Select, message } from "antd";
 import { useNavigate } from "react-router-dom";
+import { RegisterUser } from "../../api/users";
 
 function Register() {
   const navigate = useNavigate();
   const onFinish = async (values) => {
-    console.log(values);
+    try {
+      const response = await RegisterUser(values);
+
+      if (response.success) {
+        message.success(response.message);
+        navigate("/login");
+      } else {
+        message.error(response.message);
+      }
+    } catch (error) {
+      message.error(error.message);
+    }
   };
 
   return (
@@ -50,9 +62,13 @@ function Register() {
                 name="email"
                 rules={[
                   {
+                    type: 'email',
+                    message: 'The input is not valid E-mail!',
+                  },
+                  {
                     required: true,
                     message: "Please input your email!",
-                  },
+                  }
                 ]}
               >
                 <Input />
@@ -125,6 +141,7 @@ function Register() {
               <Form.Item
                 label="Password"
                 name="password"
+                hasFeedback
                 rules={[
                   {
                     required: true,
@@ -139,11 +156,22 @@ function Register() {
               <Form.Item
                 label="Confirm Password"
                 name="confirmPassword"
+                hasFeedback
+                dependencies={['password']}
                 rules={[
                   {
                     required: true,
                     message: "Please confirm your password!",
                   },
+                  ({ getFieldValue }) => ({
+                    validator(_, value) {
+                      if (!value || getFieldValue('password') === value) {
+                        return Promise.resolve();
+                      }
+
+                      return Promise.reject(new Error('The new password that you entered do not match!'));
+                    },
+                  }),
                 ]}
               >
                 <Input.Password />

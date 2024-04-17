@@ -1,11 +1,23 @@
 import { useNavigate } from "react-router-dom";
-import { Col, Form, Row, Input } from "antd";
+import { Col, Form, Row, Input, message } from "antd";
+import { LoginUser } from "../../api/users";
 
 function Login() {
   const navigate = useNavigate();
 
-  const onFinish = (values) => {
-    console.log("Recieved values of form: ", values);
+  const onFinish = async (values) => {
+    try {
+
+      const response = await LoginUser(values);
+
+      if (response.success) {
+        message.success(response.message);
+      } else {
+        message.error(response.message);
+      }
+    } catch (error) {
+      message.error(error.message);
+    }
   };
 
   return (
@@ -22,6 +34,10 @@ function Login() {
                 label="Email"
                 name="email"
                 rules={[
+                  {
+                    type: "email",
+                    message: "The input is not valid E-mail!",
+                  },
                   {
                     required: true,
                     message: "Please input your email!",

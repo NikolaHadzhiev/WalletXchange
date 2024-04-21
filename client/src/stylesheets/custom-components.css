@@ -42,3 +42,7 @@ table {
 .ant-modal-header {
     margin-bottom: 20px !important;
 }   
+
+.ant-input-number {
+    width: 100% !important;
+}

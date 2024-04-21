@@ -84,6 +84,18 @@
     margin-top: 20px;
 }
 
+.mt-3 {
+    margin-top: 30px;
+}
+
+.mt-4 {
+    margin-top: 40px;
+}
+
+.mt-7 {
+    margin-top: 70px;
+}
+
 .m-3 {
     margin: 30px;
 }
@@ -108,3 +120,8 @@
     padding: 30px;
 }
 
+/* border and border radius */
+
+.br-3 {
+    border-radius: 3px;
+}

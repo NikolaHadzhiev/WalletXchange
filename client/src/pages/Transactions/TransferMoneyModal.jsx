@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Modal, Form, Input, message } from "antd";
+import { InputNumber, Modal, Form, Input, message } from "antd";
 import { useDispatch, useSelector } from "react-redux";
 import { TransferMoney, VerifyAccount } from "../../api/transactions";
 import { ShowLoading, HideLoading } from "../../state/loaderSlice";
@@ -7,7 +7,6 @@ import { ShowLoading, HideLoading } from "../../state/loaderSlice";
 export const TransferMoneyModal = ({
   showTransferMoneyModal,
   setShowTransferMoneyModal,
-  reloadData,
 }) => {
   const { TextArea } = Input;
   const [form] = Form.useForm();
@@ -115,12 +114,14 @@ export const TransferMoneyModal = ({
                 message: "Please input your amount!",
               },
               {
-                max: user.balance,
+                type: 'integer',
+                max: Number(user.balance),
+                min: 1,
                 message: "Insufficient Balance",
               },
             ]}
           >
-            <Input />
+            <InputNumber min={1} max={Number(user.balance)} controls={false} />
           </Form.Item>
 
           <Form.Item label="Description" name="reference">

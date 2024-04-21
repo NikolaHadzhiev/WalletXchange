@@ -112,13 +112,13 @@ function DefaultLayout({ children }) {
       <div className="body">
         <div className="header flex justify-between items-center">
           <div className="text-white">
-            {collapsed && (
+            {!collapsed && (
               <i
                 className="ri-close-line"
                 onClick={() => setCollapsed(!collapsed)}
               ></i>
             )}
-            {!collapsed && (
+            {collapsed && (
               <i
                 className="ri-menu-2-line"
                 onClick={() => setCollapsed(!collapsed)}

@@ -1,40 +1,48 @@
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { GetUserInfo } from "../api/users";
 import { message } from "antd";
 import { useNavigate } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux";
+import { SetUser } from "../state/userSlice";
 
 function ProtectedRoute(props) {
-  const [userData, setUserData] = useState(null);
+  const { user } = useSelector(state => state.users);
+  const dispatch = useDispatch();
   const navigate = useNavigate();
 
-  const getData = async () => {
-    try {
-      const response = await GetUserInfo();
-
-      if (response.success) {
-        setUserData(response.data);
-      } else {
-        message.error(response.message);
+  useEffect(() => {
+    const getData = async () => {
+      try {
+        const response = await GetUserInfo();
+  
+        if (response.success) {
+          dispatch(SetUser(response.data))
+        } else {
+          message.error(response.message);
+          navigate("/login");
+        }
+      } catch (error) {
+        message.error(error.message);
         navigate("/login");
       }
-    } catch (error) {
-      message.error(error.message);
-      navigate("/login");
-    }
-  };
+    };
 
-  useEffect(() => {
     if (localStorage.getItem("token")) {
 
-      if(!userData) {
+      if(!user) {
         getData();
       }
     } else {
       navigate("/login");
     }
-  }, [userData, navigate]);
+  }, [navigate, dispatch, user]);
 
-  return <div>{props.children}</div>;
+  return user && 
+  
+  <div>
+    {user.email}
+    {props.children}
+  </div>;
 }
 
 export default ProtectedRoute;

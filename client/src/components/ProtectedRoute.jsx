@@ -4,6 +4,7 @@ import { message } from "antd";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { SetUser } from "../state/userSlice";
+import { HideLoading, ShowLoading } from "../state/loaderSlice";
 import DefaultLayout from "./DefaultLayout";
 
 function ProtectedRoute(props) {
@@ -12,9 +13,16 @@ function ProtectedRoute(props) {
   const navigate = useNavigate();
 
   useEffect(() => {
+
     const getData = async () => {
+
       try {
+        
+        dispatch(ShowLoading());
+
         const response = await GetUserInfo();
+
+        dispatch(HideLoading());
 
         if (response.success) {
           dispatch(SetUser(response.data));
@@ -22,9 +30,14 @@ function ProtectedRoute(props) {
           message.error(response.message);
           navigate("/login");
         }
-      } catch (error) {
+        
+      } 
+      catch (error) {
+
+        dispatch(HideLoading());
         message.error(error.message);
         navigate("/login");
+
       }
     };
 

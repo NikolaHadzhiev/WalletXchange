@@ -1,13 +1,21 @@
 import { Col, Form, Row, Input, Select, message } from "antd";
 import { useNavigate } from "react-router-dom";
 import { RegisterUser } from "../../api/users";
+import { useDispatch } from "react-redux";
+import { HideLoading, ShowLoading } from "../../state/loaderSlice";
 
 function Register() {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
+
   const onFinish = async (values) => {
     try {
+      
+      dispatch(ShowLoading());
 
       const response = await RegisterUser(values);
+
+      dispatch(HideLoading());
 
       if (response.success) {
         message.success(response.message);
@@ -16,7 +24,10 @@ function Register() {
         message.error(response.message);
       }
     } catch (error) {
+
+      dispatch(HideLoading());
       message.error(error.message);
+
     }
   };
 

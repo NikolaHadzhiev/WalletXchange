@@ -6,7 +6,9 @@ import './stylesheets/theme.css'
 import './stylesheets/layout.css'
 
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { useSelector } from "react-redux";
 
+import Loader from "./components/Loader";
 import Login from './pages/Login/LoginPage';
 import Register from './pages/Register/RegisterPage';
 import Home from './pages/Home/HomePage';
@@ -15,8 +17,12 @@ import PublicRoute from './components/PublicRoute'
 import Transactions from './pages/Transactions/TransactionsPage'
 
 function App() {
+  const { loading } = useSelector((state) => state.loaders);
+
+
   return (
     <>
+      {loading && <Loader />}
       <BrowserRouter>
         <Routes>
           <Route

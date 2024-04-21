@@ -1,14 +1,23 @@
 import { useNavigate } from "react-router-dom";
 import { Col, Form, Row, Input, message } from "antd";
 import { LoginUser } from "../../api/users";
+import { HideLoading, ShowLoading } from "../../state/loaderSlice";
+import { useDispatch } from "react-redux";
+
 
 function Login() {
+
   const navigate = useNavigate();
+  const dispatch = useDispatch();
 
   const onFinish = async (values) => {
     try {
 
+      dispatch(ShowLoading());
+
       const response = await LoginUser(values);
+
+      dispatch(HideLoading());
 
       if (response.success) {
         message.success(response.message);
@@ -20,7 +29,9 @@ function Login() {
       } else {
         message.error(response.message);
       }
-    } catch (error) {
+    } 
+    catch (error) {
+      dispatch(HideLoading());
       message.error(error.message);
     }
   };

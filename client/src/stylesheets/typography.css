@@ -1,5 +1,6 @@
 h1 {
-    margin-bottom: 10px !important;
+    margin-bottom: 0 !important;
+    padding-bottom: 0 !important;
 }
 
 .text-2xl {
@@ -37,6 +38,11 @@ h1 {
 
 .uppercase {
     text-transform: uppercase;
+}
+
+i {
+    font-size: 20px;
+    cursor: pointer;
 }
 
 

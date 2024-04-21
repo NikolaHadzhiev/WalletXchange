@@ -4,9 +4,10 @@ import { message } from "antd";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { SetUser } from "../state/userSlice";
+import DefaultLayout from "./DefaultLayout";
 
 function ProtectedRoute(props) {
-  const { user } = useSelector(state => state.users);
+  const { user } = useSelector((state) => state.users);
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
@@ -14,9 +15,9 @@ function ProtectedRoute(props) {
     const getData = async () => {
       try {
         const response = await GetUserInfo();
-  
+
         if (response.success) {
-          dispatch(SetUser(response.data))
+          dispatch(SetUser(response.data));
         } else {
           message.error(response.message);
           navigate("/login");
@@ -28,8 +29,7 @@ function ProtectedRoute(props) {
     };
 
     if (localStorage.getItem("token")) {
-
-      if(!user) {
+      if (!user) {
         getData();
       }
     } else {
@@ -37,12 +37,13 @@ function ProtectedRoute(props) {
     }
   }, [navigate, dispatch, user]);
 
-  return user && 
-  
-  <div>
-    {user.email}
-    {props.children}
-  </div>;
+  return (
+    user && (
+      <>
+        <DefaultLayout>{props.children}</DefaultLayout>
+      </>
+    )
+  );
 }
 
 export default ProtectedRoute;

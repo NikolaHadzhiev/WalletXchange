@@ -3,6 +3,7 @@ import './stylesheets/form-elements.css'
 import './stylesheets/custom-components.css'
 import './stylesheets/alignments.css'
 import './stylesheets/theme.css'
+import './stylesheets/layout.css'
 
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 
@@ -11,6 +12,7 @@ import Register from './pages/Register/RegisterPage';
 import Home from './pages/Home/HomePage';
 import ProtectedRoute from './components/ProtectedRoute'
 import PublicRoute from './components/PublicRoute'
+import Transactions from './pages/Transactions/TransactionsPage'
 
 function App() {
   return (
@@ -38,6 +40,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Home />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/transactions"
+            element={
+              <ProtectedRoute>
+                <Transactions />
               </ProtectedRoute>
             }
           />

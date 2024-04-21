@@ -6,6 +6,7 @@ function Register() {
   const navigate = useNavigate();
   const onFinish = async (values) => {
     try {
+
       const response = await RegisterUser(values);
 
       if (response.success) {

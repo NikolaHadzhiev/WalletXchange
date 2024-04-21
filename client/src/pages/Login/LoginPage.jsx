@@ -12,6 +12,11 @@ function Login() {
 
       if (response.success) {
         message.success(response.message);
+
+        localStorage.setItem("token", response.data);
+        
+        // Because sometimes the home page may load before putting the data in local storage causing errors
+        window.location.href = "/"; 
       } else {
         message.error(response.message);
       }

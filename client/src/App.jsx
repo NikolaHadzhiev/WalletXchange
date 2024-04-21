@@ -8,6 +8,9 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 
 import Login from './pages/Login/LoginPage';
 import Register from './pages/Register/RegisterPage';
+import Home from './pages/Home/HomePage';
+import ProtectedRoute from './components/ProtectedRoute'
+import PublicRoute from './components/PublicRoute'
 
 function App() {
   return (
@@ -17,13 +20,25 @@ function App() {
           <Route
             path="/login"
             element={
+              <PublicRoute>
                 <Login />
+              </PublicRoute>
             }
           />
           <Route
             path="/register"
             element={
+              <PublicRoute>
                 <Register />
+              </PublicRoute>
+            }
+          />
+          <Route
+            path="/"
+            element={
+              <ProtectedRoute>
+                <Home />
+              </ProtectedRoute>
             }
           />
         </Routes>

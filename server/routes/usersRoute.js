@@ -76,12 +76,12 @@ router.post("/login", async (req, res) => {
     }
 
     // check if user is verified
-    if (!user.isVerified) {
-      return res.send({
-        success: false,
-        message: "User is not verified yet or has been suspended",
-      });
-    }
+    // if (!user.isVerified) {
+    //   return res.send({
+    //     success: false,
+    //     message: "User is not verified yet or has been suspended",
+    //   });
+    // }
 
     // generate token
     const token = jwt.sign({ userId: user._id }, process.env.jwt_secret, {
@@ -93,6 +93,28 @@ router.post("/login", async (req, res) => {
       data: token,
       success: true,
     });
+  } catch (error) {
+    res.send({
+      message: error.message,
+      success: false,
+    });
+  }
+});
+
+// get user info
+router.post("/get-user-info", authMiddleware, async (req, res) => {
+  try {
+
+    const user = await User.findById(req.body.userId);
+
+    user.password = ""; //The password should not be accessed by front end
+
+    res.send({
+      message: "User info fetched successfully",
+      data: user,
+      success: true,
+    });
+
   } catch (error) {
     res.send({
       message: error.message,

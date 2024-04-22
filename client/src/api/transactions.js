@@ -40,3 +40,14 @@ export const GetTransactionsOfUser = async () => {
     return error.response.data;
   }
 }
+
+// deposit money using stripe
+export const DepositMoney = async (payload) => {
+  try {
+    const { data } = await axiosInstance.post("/api/transactions/deposit-money", payload);
+
+    return data;
+  } catch (error) {
+    return error.response.data;
+  }
+}

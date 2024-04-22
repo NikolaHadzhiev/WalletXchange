@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import PageTitle from "../../components/PageTitle";
 import { Table, message } from "antd";
 import { TransferMoneyModal } from "./TransferMoneyModal";
@@ -6,9 +6,11 @@ import { HideLoading, ShowLoading } from "../../state/loaderSlice";
 import { useDispatch, useSelector } from "react-redux";
 import { GetTransactionsOfUser } from "../../api/transactions";
 import moment from "moment";
+import DepositModal from "./DepositModal";
 
 function Transactions() {
   const [showTransferMoneyModal, setShowTransferMoneyModal] = useState(false);
+  const [showDepositModal, setShowDepositModal] = useState(false);
   const [data, setData] = useState([]);
   const { user } = useSelector((state) => state.users);
   const dispatch = useDispatch();
@@ -37,7 +39,11 @@ function Transactions() {
       title: "Type",
       dataIndex: "type",
       render: (text, record) => {
-        return record.sender._id === user._id ? "Sent" : "Recieved";
+        if (record.sender._id === record.receiver._id) {
+          return "Deposit";
+        } else if (record.sender._id === user._id) {
+          return "Debit";
+        } else return "Credit";
       },
     },
     {
@@ -72,26 +78,26 @@ function Transactions() {
     },
   ];
 
-  useEffect(() => {
-    const getData = async () => {
-      try {
-        dispatch(ShowLoading());
-
-        const response = await GetTransactionsOfUser();
-
-        if (response.success) {
-          setData(response.data);
-        }
-
-        dispatch(HideLoading());
-      } catch (error) {
-        dispatch(HideLoading());
-        message.error(error.message);
+  const getData = useCallback(async () => {
+    try {
+      dispatch(ShowLoading());
+  
+      const response = await GetTransactionsOfUser();
+  
+      if (response.success) {
+        setData(response.data);
       }
-    };
-
-    getData();
+  
+      dispatch(HideLoading());
+    } catch (error) {
+      dispatch(HideLoading());
+      message.error(error.message);
+    }
   }, [dispatch]);
+
+  useEffect(() => {
+    getData();
+  }, [getData]);
 
   return (
     <>
@@ -99,7 +105,13 @@ function Transactions() {
         <PageTitle title="Transactions" />
 
         <div className="flex gap-1">
-          <button className="primary-outlined-btn">Deposit</button>
+          <button
+            className="primary-outlined-btn"
+            onClick={() => setShowDepositModal(true)}
+          >
+            Deposit
+          </button>
+
           <button
             className="primary-contained-btn"
             onClick={() => setShowTransferMoneyModal(true)}
@@ -121,6 +133,15 @@ function Transactions() {
         <TransferMoneyModal
           showTransferMoneyModal={showTransferMoneyModal}
           setShowTransferMoneyModal={setShowTransferMoneyModal}
+          reloadData={getData}
+        />
+      )}
+
+      {showDepositModal && (
+        <DepositModal
+          showDepositModal={showDepositModal}
+          setShowDepositModal={setShowDepositModal}
+          reloadData={getData}
         />
       )}
     </>

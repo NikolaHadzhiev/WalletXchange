@@ -7,6 +7,7 @@ import { ShowLoading, HideLoading } from "../../state/loaderSlice";
 export const TransferMoneyModal = ({
   showTransferMoneyModal,
   setShowTransferMoneyModal,
+  reloadData
 }) => {
   const { TextArea } = Input;
   const [form] = Form.useForm();
@@ -27,8 +28,11 @@ export const TransferMoneyModal = ({
       dispatch(HideLoading());
 
       if (response.success) {
+
+        reloadData();
         message.success(response.message);
         setIsVerified("yes");
+        
       } else {
         message.error(response.message);
         setIsVerified("no");
@@ -112,16 +116,10 @@ export const TransferMoneyModal = ({
               {
                 required: true,
                 message: "Please input your amount!",
-              },
-              {
-                type: 'integer',
-                max: Number(user.balance),
-                min: 1,
-                message: "Insufficient Balance",
-              },
+              }
             ]}
           >
-            <InputNumber min={1} max={Number(user.balance)} controls={false} />
+            <InputNumber min={1} max={Number(user.balance)} step={0.01} controls={false} />
           </Form.Item>
 
           <Form.Item label="Description" name="reference">

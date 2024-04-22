@@ -6,6 +6,7 @@ import RequestModal from "./RequestModal";
 import { GetAllRequestsByUser, UpdateRequestStatus } from "../../api/requests";
 import { useDispatch, useSelector } from "react-redux";
 import { HideLoading, ShowLoading } from "../../state/loaderSlice";
+import { ReloadUser } from "../../state/userSlice";
 
 const { TabPane } = Tabs;
 
@@ -63,9 +64,11 @@ function Requests() {
         dispatch(HideLoading());
 
         if (response.success) {
+
           getData();
           message.success(response.message);
-          //dispatch(ReloadUser(true));
+          dispatch(ReloadUser(true));
+
         } else {
           message.error(response.message);
         }

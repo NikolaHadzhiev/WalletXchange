@@ -3,6 +3,7 @@ import { InputNumber, Modal, Form, Input, message } from "antd";
 import { useDispatch, useSelector } from "react-redux";
 import { TransferMoney, VerifyAccount } from "../../api/transactions";
 import { ShowLoading, HideLoading } from "../../state/loaderSlice";
+import { ReloadUser } from "../../state/userSlice";
 
 export const TransferMoneyModal = ({
   showTransferMoneyModal,
@@ -32,6 +33,7 @@ export const TransferMoneyModal = ({
         reloadData();
         message.success(response.message);
         setIsVerified("yes");
+        dispatch(ReloadUser(true));
 
       } else {
         message.error(response.message);

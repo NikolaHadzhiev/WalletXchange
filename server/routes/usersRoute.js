@@ -75,13 +75,13 @@ router.post("/login", async (req, res) => {
       });
     }
 
-    // check if user is verified
-    // if (!user.isVerified) {
-    //   return res.send({
-    //     success: false,
-    //     message: "User is not verified yet or has been suspended",
-    //   });
-    // }
+    //check if user is verified
+    if (!user.isVerified) {
+      return res.send({
+        success: false,
+        message: "User is not verified yet or has been suspended",
+      });
+    }
 
     // generate token
     const token = jwt.sign({ userId: user._id }, process.env.jwt_secret, {

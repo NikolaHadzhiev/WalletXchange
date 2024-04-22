@@ -42,8 +42,8 @@ function Transactions() {
         if (record.sender._id === record.receiver._id) {
           return "Deposit";
         } else if (record.sender._id === user._id) {
-          return "Debit";
-        } else return "Credit";
+          return "Sent";
+        } else return "Recieved";
       },
     },
     {

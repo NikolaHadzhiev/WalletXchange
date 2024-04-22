@@ -1,40 +1,35 @@
 import { useState } from "react";
-import { InputNumber, Modal, Form, Input, message } from "antd";
+import { Modal, Form, message, Input, InputNumber } from "antd";
 import { useDispatch, useSelector } from "react-redux";
-import { TransferMoney, VerifyAccount } from "../../api/transactions";
+import { VerifyAccount } from "../../api/transactions";
 import { ShowLoading, HideLoading } from "../../state/loaderSlice";
+import { SendRequest } from "../../api/requests";
 
-export const TransferMoneyModal = ({
-  showTransferMoneyModal,
-  setShowTransferMoneyModal,
-  reloadData
-}) => {
+function RequestModal({
+  showNewRequestModal,
+  setShowNewRequestModal,
+  reloadData,
+}) {
   const { TextArea } = Input;
   const [form] = Form.useForm();
   const dispatch = useDispatch();
 
-  const [isVerified, setIsVerified] = useState("");
   const { user } = useSelector((state) => state.users);
+  const [isVerified, setIsVerified] = useState("");
 
   const verifyAccount = async () => {
     try {
       dispatch(ShowLoading());
 
       const response = await VerifyAccount({
-        sender: user._id,
         receiver: form.getFieldValue("receiver"),
       });
 
       dispatch(HideLoading());
 
       if (response.success) {
-
-        reloadData();
-        message.success(response.message);
         setIsVerified("yes");
-
       } else {
-        message.error(response.message);
         setIsVerified("no");
       }
     } catch (error) {
@@ -45,47 +40,45 @@ export const TransferMoneyModal = ({
 
   const onFinish = async (values) => {
     try {
+      if (values.amount > user.balance) {
+        message.error("Insufficient funds");
+        return;
+      }
 
       dispatch(ShowLoading());
 
       const payload = {
         ...values,
-        reference : values.reference || "no description",
         sender: user._id,
         status: "success",
+        reference: values.reference || "no description",
       };
 
-      const response = await TransferMoney(payload);
-      
+      const response = await SendRequest(payload);
+
       if (response.success) {
-
         reloadData();
-        setShowTransferMoneyModal(false);
+        setShowNewRequestModal(false);
         message.success(response.message);
-        //dispatch(ReloadUser(true))
-
-      }else{
+      } else {
         message.error(response.message);
       }
 
       dispatch(HideLoading());
-      
-    } 
-    catch (error) {
-      dispatch(HideLoading());
+    } catch (error) {
       message.error(error.message);
+      dispatch(HideLoading());
     }
-  }
+  };
 
   return (
-    <>
+    <div>
       <Modal
-        title="Transfer Money"
-        open={showTransferMoneyModal}
-        onClose={() => setShowTransferMoneyModal(false)}
-        onCancel={() => setShowTransferMoneyModal(false)}
+        title="Request Money"
+        open={showNewRequestModal}
+        onCancel={() => setShowNewRequestModal(false)}
+        onClose={() => setShowNewRequestModal(false)}
         footer={null}
-        styles={"title"}
       >
         <Form layout="vertical" form={form} onFinish={onFinish}>
           <div className="flex gap-2 items-center">
@@ -102,7 +95,7 @@ export const TransferMoneyModal = ({
           </div>
 
           {isVerified === "yes" && (
-            <div className="success-bg">Account Verified Successfully</div>
+            <div className="success-bg">Account verified successfully</div>
           )}
 
           {isVerified === "no" && (
@@ -116,31 +109,38 @@ export const TransferMoneyModal = ({
               {
                 required: true,
                 message: "Please input your amount!",
-              }
+              },
             ]}
           >
-            <InputNumber min={1} max={Number(user.balance)} step={0.01} controls={false} />
+            <InputNumber
+              min={1}
+              max={Number(user.balance)}
+              step={0.01}
+              controls={false}
+            />
           </Form.Item>
 
-          <Form.Item label="Description" name="reference">
+          <Form.Item label="Description" name="description">
             <TextArea rows={4} />
           </Form.Item>
 
           <div className="flex justify-end gap-1">
             <button
               className="primary-outlined-btn"
-              onClick={() => setShowTransferMoneyModal(false)}
+              onClick={() => setShowNewRequestModal(false)}
             >
               Cancel
             </button>
             {isVerified === "yes" && (
               <button className="primary-contained-btn" type="submit">
-                Transfer
+                Request
               </button>
             )}
           </div>
         </Form>
       </Modal>
-    </>
+    </div>
   );
-};
+}
+
+export default RequestModal;

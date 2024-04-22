@@ -15,6 +15,7 @@ import Home from './pages/Home/HomePage';
 import ProtectedRoute from './components/ProtectedRoute'
 import PublicRoute from './components/PublicRoute'
 import Transactions from './pages/Transactions/TransactionsPage'
+import Requests from './pages/Requests/RequestsPage'
 
 function App() {
   const { loading } = useSelector((state) => state.loaders);
@@ -54,6 +55,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Transactions />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/requests"
+            element={
+              <ProtectedRoute>
+                <Requests />
               </ProtectedRoute>
             }
           />

@@ -42,6 +42,23 @@ router.post("/send-request", authMiddleware, async (req, res) => {
 
     await request.save();
 
+    const receiverUser = await User.findById(receiver);
+
+    if (receiverUser.balance < amount) {
+
+      await Request.findByIdAndUpdate(request._id, {
+        status: "rejected"
+      });
+
+      res.send({
+        data: request,
+        message: "Reciever of the request does not have enough money",
+        success: false,
+      });
+
+      return;
+    }
+
     res.send({
       data: request,
       message: "Request sent successfully",
@@ -59,7 +76,6 @@ router.post("/update-request-status", authMiddleware, async (req, res) => {
   try {
 
     if (req.body.status === "accepted") {
-      
       // create a transaction
       const transaction = new Transaction({
         sender: req.body.receiver._id,

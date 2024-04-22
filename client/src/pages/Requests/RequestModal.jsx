@@ -40,11 +40,6 @@ function RequestModal({
 
   const onFinish = async (values) => {
     try {
-      if (values.amount > user.balance) {
-        message.error("Insufficient funds");
-        return;
-      }
-
       dispatch(ShowLoading());
 
       const payload = {
@@ -61,7 +56,10 @@ function RequestModal({
         setShowNewRequestModal(false);
         message.success(response.message);
       } else {
+
+        setShowNewRequestModal(false);
         message.error(response.message);
+        
       }
 
       dispatch(HideLoading());
@@ -114,7 +112,6 @@ function RequestModal({
           >
             <InputNumber
               min={1}
-              max={Number(user.balance)}
               step={0.01}
               controls={false}
             />

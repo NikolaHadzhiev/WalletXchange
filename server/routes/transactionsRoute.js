@@ -1,15 +1,15 @@
 const router = require("express").Router();
 const Transaction = require("../models/transactionModel");
-const authMiddleware = require("../middlewares/authMiddleware");
+const { authenticationMiddleware } = require("../middlewares/authMiddleware");
 const User = require("../models/userModel");
+const DeletedUser = require("../models/deletedUserModel");
 
 const stripe = require("stripe")(process.env.stripe_key);
-const { uuid } = require('uuidv4');
+const { uuid } = require("uuidv4");
 
 // transer money from one account to another
-router.post("/transfer-money", authMiddleware, async (req, res) => {
+router.post("/transfer-money", authenticationMiddleware, async (req, res) => {
   try {
-
     const sender = await User.findById(req.body.sender);
 
     if (sender.balance < req.body.amount) {
@@ -51,20 +51,31 @@ router.post("/transfer-money", authMiddleware, async (req, res) => {
   }
 });
 
-// verify receiver's account number 
-router.post("/verify-account", authMiddleware, async (req, res) => {
+// verify receiver's account number
+router.post("/verify-account", authenticationMiddleware, async (req, res) => {
   try {
 
-    if(req.body.sender === req.body.receiver) {
+    if (req.body.userId?.toLowerCase() === req.body.receiver?.toLowerCase()) {
+
       res.send({
         message: "Reciever account number can't be sender account number",
         data: null,
         success: false,
       });
-      
+
       return;
     }
-    
+
+    if (req.body.sender?.toLowerCase() === req.body.receiver?.toLowerCase()) {
+      res.send({
+        message: "Reciever account number can't be sender account number",
+        data: null,
+        success: false,
+      });
+
+      return;
+    }
+
     const user = await User.findOne({ _id: req.body.receiver });
 
     if (user) {
@@ -80,8 +91,7 @@ router.post("/verify-account", authMiddleware, async (req, res) => {
         success: false,
       });
     }
-  } 
-  catch (error) {
+  } catch (error) {
     res.send({
       message: "Account not found",
       data: error.message,
@@ -93,12 +103,10 @@ router.post("/verify-account", authMiddleware, async (req, res) => {
 // get all transactions for a user
 router.post(
   "/get-all-transactions-by-user",
-  authMiddleware,
+  authenticationMiddleware,
 
   async (req, res) => {
-
     try {
-
       const transactions = await Transaction.find({
         $or: [{ sender: req.body.userId }, { receiver: req.body.userId }],
       })
@@ -106,14 +114,29 @@ router.post(
         .populate("sender")
         .populate("receiver");
 
-      res.send({
-        message: "Transactions fetched",
-        data: transactions,
-        success: true,
+      const transactionIds = transactions.map(t => t._id);
+
+      const deletedUser = await DeletedUser.findOne({"transactions._id": {$in: transactionIds}});
+
+      // Check and modify transactions if receiver is null
+      const modifiedTransactions = transactions.map((transaction) => {
+        if (!transaction.receiver && deletedUser?.transactions?.some(t => t._id.toString() === transaction.id)) {
+          transaction.receiver = { _id: deletedUser.deleteId, firstName: deletedUser.firstName, lastName: deletedUser.lastName };
+        }
+
+        if(!transaction.sender && deletedUser?.transactions?.some(t => t._id.toString() === transaction.id)) {
+          transaction.sender = { _id: deletedUser.deleteId, firstName: deletedUser.firstName, lastName: deletedUser.lastName };
+        }
+
+        return transaction;
       });
 
-    } 
-    catch (error) {
+      res.send({
+        message: "Transactions fetched",
+        data: modifiedTransactions,
+        success: true,
+      });
+    } catch (error) {
       res.send({
         message: "Transactions not fetched",
         data: error.message,
@@ -124,7 +147,7 @@ router.post(
 );
 
 //deposit money using stripe
-router.post("/deposit-money", authMiddleware, async (req, res) => {
+router.post("/deposit-money", authenticationMiddleware, async (req, res) => {
   try {
     const { token, amount } = req.body;
 
@@ -150,7 +173,6 @@ router.post("/deposit-money", authMiddleware, async (req, res) => {
 
     // save the transaction
     if (charge.status === "succeeded") {
-
       const newTransaction = new Transaction({
         sender: req.body.userId,
         receiver: req.body.userId,
@@ -173,16 +195,13 @@ router.post("/deposit-money", authMiddleware, async (req, res) => {
         success: true,
       });
     } else {
-
       res.send({
         message: "Transaction failed",
         data: charge,
         success: false,
       });
-
     }
-  } 
-  catch (error) {
+  } catch (error) {
     res.send({
       message: "Transaction failed",
       data: error.message,

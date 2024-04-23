@@ -46,6 +46,10 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    requestDelete: {
+      type: Boolean,
+      default: false
+    }
   },
   {
     timestamps: true,

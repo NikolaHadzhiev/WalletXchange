@@ -22,3 +22,12 @@ input:focus , select:focus , textarea:focus{
     border: 1px solid var(--primary);
 }
 
+.delete-contained-btn {
+    background-color: var(--red) !important;
+    color: white !important;
+    padding: 8px 20px;
+    text-transform: uppercase;
+    border-radius: 3px;
+    margin-bottom: 15px;
+}
+

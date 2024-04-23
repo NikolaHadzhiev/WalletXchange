@@ -29,11 +29,9 @@ export const TransferMoneyModal = ({
       dispatch(HideLoading());
 
       if (response.success) {
-
-        reloadData();
+        
         message.success(response.message);
         setIsVerified("yes");
-        dispatch(ReloadUser(true));
 
       } else {
         message.error(response.message);
@@ -64,7 +62,7 @@ export const TransferMoneyModal = ({
         reloadData();
         setShowTransferMoneyModal(false);
         message.success(response.message);
-        //dispatch(ReloadUser(true))
+        dispatch(ReloadUser(true));
 
       }else{
         message.error(response.message);

@@ -16,6 +16,7 @@ import ProtectedRoute from './components/ProtectedRoute'
 import PublicRoute from './components/PublicRoute'
 import Transactions from './pages/Transactions/TransactionsPage'
 import Requests from './pages/Requests/RequestsPage'
+import Users from './pages/Users/UsersPage'
 
 function App() {
   const { loading } = useSelector((state) => state.loaders);
@@ -63,6 +64,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Requests />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/users"
+            element={
+              <ProtectedRoute shouldBeAdmin={true}>
+                <Users />
               </ProtectedRoute>
             }
           />

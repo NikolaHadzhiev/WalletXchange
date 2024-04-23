@@ -117,7 +117,7 @@ function RequestModal({
             />
           </Form.Item>
 
-          <Form.Item label="Description" name="description">
+          <Form.Item label="Description" name="reference">
             <TextArea rows={4} />
           </Form.Item>
 

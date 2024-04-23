@@ -46,3 +46,7 @@ table {
 .ant-input-number {
     width: 100% !important;
 }
+
+.ant-table-cell {
+    text-align: center !important;
+}

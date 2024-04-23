@@ -1,6 +1,7 @@
 :root {
     --primary: #1C1678;
     --secondary: #ff6200;
+    --red: #d3391b;
 }
 
 .bg-primary {
@@ -32,9 +33,14 @@
 }
 
 .error-bg {
-    background-color: #d3391b !important;
+    background-color: var(--red) !important;
     color: white !important;
     padding: 10px;
     border-radius: 3px;
     margin-bottom: 15px;
+}
+
+.red {
+    background-color: var(--red) !important;
+    color: white !important;
 }

@@ -7,7 +7,7 @@ import { SetUser, ReloadUser } from "../state/userSlice";
 import { HideLoading, ShowLoading } from "../state/loaderSlice";
 import DefaultLayout from "./DefaultLayout";
 
-function ProtectedRoute(props) {
+function ProtectedRoute({ shouldBeAdmin = false, children }) {
   const { user, reloadUser } = useSelector((state) => state.users);
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -15,9 +15,9 @@ function ProtectedRoute(props) {
   const getData = useCallback(async () => {
     try {
       dispatch(ShowLoading());
-      
+
       const response = await GetUserInfo();
-      
+
       dispatch(HideLoading());
 
       if (response.success) {
@@ -34,7 +34,6 @@ function ProtectedRoute(props) {
   }, [dispatch, navigate]);
 
   useEffect(() => {
-
     if (localStorage.getItem("token")) {
       if (!user) {
         getData();
@@ -43,22 +42,34 @@ function ProtectedRoute(props) {
       navigate("/login");
     }
 
-    dispatch(ReloadUser(false))
-
+    dispatch(ReloadUser(false));
   }, [dispatch, navigate, user, getData]);
 
   useEffect(() => {
-    
-      if (reloadUser) {
-        getData();
-      }
+    if (reloadUser) {
+      getData();
+    }
+  }, [getData, reloadUser]);
 
-  }, [getData, reloadUser])
+  useEffect(() => {
+    if (localStorage.getItem("token")) {
+      if (!user) {
+        getData();
+      } else {
+        if (shouldBeAdmin && shouldBeAdmin !== user.isAdmin) {
+          navigate("/");
+        }
+      }
+    }
+
+    dispatch(ReloadUser(false));
+
+  }, [dispatch, getData, navigate, shouldBeAdmin, user]);
 
   return (
     user && (
       <>
-        <DefaultLayout>{props.children}</DefaultLayout>
+        <DefaultLayout>{children}</DefaultLayout>
       </>
     )
   );

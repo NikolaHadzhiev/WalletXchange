@@ -1,11 +1,13 @@
 const router = require("express").Router();
 const Request = require("../models/requestsModel");
-const authMiddleware = require("../middlewares/authMiddleware");
+const {authenticationMiddleware } = require("../middlewares/authMiddleware");
 const User = require("../models/userModel");
+const DeletedUser = require("../models/deletedUserModel");
 const Transaction = require("../models/transactionModel");
 
+
 // get all requests for a user
-router.post("/get-all-requests-by-user", authMiddleware, async (req, res) => {
+router.post("/get-all-requests-by-user", authenticationMiddleware, async (req, res) => {
   try {
 
     const requests = await Request.find({
@@ -15,8 +17,25 @@ router.post("/get-all-requests-by-user", authMiddleware, async (req, res) => {
       .populate("receiver")
       .sort({ createdAt: -1 });
 
+      const requestIds = requests.map(r => r._id);
+
+      const deletedUser = await DeletedUser.findOne({"requests._id": {$in: requestIds}});
+
+      // Check and modify requests if receiver is null
+      const modifiedRequests = requests.map((request) => {
+        if (!request.receiver && deletedUser?.requests?.some(r => r._id.toString() === request.id)) {
+          request.receiver = { _id: deletedUser.deleteId, firstName: deletedUser.firstName, lastName: deletedUser.lastName };
+        }
+
+        if(!request.sender && deletedUser?.requests?.some(r => r._id.toString() === request.id)) {
+          request.sender = { _id: deletedUser.deleteId, firstName: deletedUser.firstName, lastName: deletedUser.lastName };
+        }
+
+        return request;
+      });
+
     res.send({
-      data: requests,
+      data: modifiedRequests,
       message: "Requests fetched successfully",
       success: true,
     });
@@ -28,16 +47,16 @@ router.post("/get-all-requests-by-user", authMiddleware, async (req, res) => {
 });
 
 // send a request to another user
-router.post("/send-request", authMiddleware, async (req, res) => {
+router.post("/send-request", authenticationMiddleware, async (req, res) => {
   try {
 
-    const { receiver, amount, description } = req.body;
+    const { receiver, amount, reference } = req.body;
 
     const request = new Request({
       sender: req.body.userId,
       receiver,
       amount,
-      description,
+      description: reference,
     });
 
     await request.save();
@@ -72,7 +91,7 @@ router.post("/send-request", authMiddleware, async (req, res) => {
 });
 
 // update a request status
-router.post("/update-request-status", authMiddleware, async (req, res) => {
+router.post("/update-request-status", authenticationMiddleware, async (req, res) => {
   try {
 
     if (req.body.status === "accepted") {

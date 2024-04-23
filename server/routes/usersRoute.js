@@ -1,8 +1,11 @@
 const router = require("express").Router();
 const User = require("../models/userModel");
+const DeletedUser = require("../models/deletedUserModel");
+const Transaction = require("../models/transactionModel");
+const Request = require("../models/requestsModel");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const authMiddleware = require("../middlewares/authMiddleware");
+const { authenticationMiddleware, authorizationMiddleware } = require("../middlewares/authMiddleware");
 
 // register user account
 router.post("/register", async (req, res) => {
@@ -84,7 +87,7 @@ router.post("/login", async (req, res) => {
     }
 
     // generate token
-    const token = jwt.sign({ userId: user._id }, process.env.jwt_secret, {
+    const token = jwt.sign({ userId: user._id, isAdmin: user.isAdmin }, process.env.jwt_secret, {
       expiresIn: "1d",
     });
 
@@ -102,21 +105,144 @@ router.post("/login", async (req, res) => {
 });
 
 // get user info
-router.post("/get-user-info", authMiddleware, async (req, res) => {
+router.post("/get-user-info", authenticationMiddleware, async (req, res) => {
   try {
 
     const user = await User.findById(req.body.userId);
 
-    user.password = ""; //The password should not be accessed by front end
+    if (user) {
+      user.password = ""; //The password should not be accessed by front end
+
+      res.send({
+        message: "User info fetched successfully",
+        data: user,
+        success: true,
+      });
+
+      return;
+
+    }
+    else {
+      res.send({
+        message: "User deleted or not found",
+        success: false
+      });
+    }
+
+  } catch (error) {
+    res.send({
+      message: error.message,
+      success: false,
+    });
+  }
+});
+
+// get all users
+router.get("/get-all-users", authenticationMiddleware, authorizationMiddleware, async (req, res) => {
+  try {
+
+    const users = await User.find();
 
     res.send({
-      message: "User info fetched successfully",
-      data: user,
+      message: "Users fetched successfully",
+      data: users,
       success: true,
     });
 
   } catch (error) {
     res.send({
+      message: error.message,
+      success: false,
+    });
+  }
+});
+
+// update user verified status
+router.post("/update-user-verified-status", authenticationMiddleware, authorizationMiddleware, async (req, res) => {
+  try {
+
+    await User.findByIdAndUpdate(req.body.selectedUser, {
+      isVerified: req.body.isVerified,
+    });
+
+    res.send({
+      data: null,
+      message: "User verified status updated successfully",
+      success: true,
+    });
+
+  } 
+  catch (error) {
+    res.send({
+      data: error,
+      message: error.message,
+      success: false,
+    });
+  }
+});
+
+// update user request delete
+router.post("/request-delete", authenticationMiddleware, authorizationMiddleware, async (req, res) => {
+  try {
+
+    await User.findByIdAndUpdate(req.body._id, {
+      requestDelete: req.body.requestDelete,
+    });
+
+    res.send({
+      data: null,
+      message: "User delete status updated successfully",
+      success: true,
+    });
+
+  } 
+  catch (error) {
+    res.send({
+      data: error,
+      message: error.message,
+      success: false,
+    });
+  }
+});
+
+// delete user
+router.delete("/delete-user/:id", authenticationMiddleware, authorizationMiddleware, async (req, res) => {
+  try {
+
+    const userToDelete = await User.findById(req.params.id);
+
+    const requests = await Request.find({
+      $or: [{ sender: userToDelete._id }, { receiver: userToDelete._id }],
+    })
+
+    const transactions = await Transaction.find({
+      $or: [{ sender: userToDelete._id }, { receiver: userToDelete._id }],
+    })
+
+    if (userToDelete) {
+
+      await DeletedUser.create({ deleteId: userToDelete._id, firstName: userToDelete.firstName, lastName: userToDelete.lastName, requests, transactions});
+      await User.findByIdAndDelete(req.params.id);
+
+      res.send({
+        data: null,
+        message: "User deleted successfully",
+        success: true,
+      });
+
+      return;
+    }
+
+    res.send({
+      data: null,
+      message: "User not found",
+      success: false,
+    });
+
+  } 
+  catch (error) {
+    res.send({
+      data: error,
       message: error.message,
       success: false,
     });

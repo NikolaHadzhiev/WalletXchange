@@ -6,6 +6,7 @@ const Request = require("../models/requestsModel");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { authenticationMiddleware, authorizationMiddleware } = require("../middlewares/authMiddleware");
+const speakeasy = require('speakeasy');
 
 // register user account
 router.post("/register", async (req, res) => {
@@ -83,6 +84,15 @@ router.post("/login", async (req, res) => {
       return res.send({
         success: false,
         message: "User is not verified yet or has been suspended",
+      });
+    }
+
+    if (user.twoFactorEnabled) {
+      return res.send({
+        message: 'Two-factor authentication required',
+        userId: user._id,
+        twoFA: true,
+        success: true,
       });
     }
 
@@ -243,6 +253,122 @@ router.delete("/delete-user/:id", authenticationMiddleware, authorizationMiddlew
   catch (error) {
     res.send({
       data: error,
+      message: error.message,
+      success: false,
+    });
+  }
+});
+
+router.post('/enable-2fa', authenticationMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.body.userId);
+
+    if (!user) {
+      return res.status(404).send({
+        message: 'User not found',
+        success: false,
+      });
+    }
+
+     // Check if 2FA is already enabled
+     if (user.twoFactorEnabled) {
+      return res.status(400).send({
+        message: 'Two-factor authentication is already enabled for this user',
+        success: false,
+      });
+    }
+
+    const secret = speakeasy.generateSecret({ length: 20 });
+    
+    // Set the label as WalletXChange:{email}
+    const label = `WalletXChange: ${user.email}`;
+    const issuer = 'WalletXChange'; // Group entries under this name
+
+    // Manually construct the otpauth URL
+    const otpauthUrl = `otpauth://totp/${encodeURIComponent(label)}?secret=${secret.base32}&issuer=${encodeURIComponent(issuer)}`;
+
+    user.twoFactorSecret = secret.base32;
+    user.twoFactorEnabled = true;
+    await user.save();
+
+    res.send({
+      message: 'Two-factor authentication enabled successfully',
+      data: {
+        otpauthUrl, // Use the custom otpauth URL
+      },
+      success: true,
+    });
+  } catch (error) {
+    res.send({
+      message: error.message,
+      success: false,
+    });
+  }
+});
+
+
+router.post('/verify-2fa', async (req, res) => {
+  try {
+    const user = await User.findById(req.body.userId);
+    if (!user || !user.twoFactorEnabled) {
+      return res.status(400).send({
+        message: 'Two-factor authentication is not enabled for this user',
+        success: false,
+      });
+    }
+
+    const verified = speakeasy.totp.verify({
+      secret: user.twoFactorSecret,
+      encoding: 'base32',
+      token: req.body.token,
+    });
+
+    if (!verified) {
+      return res.status(400).send({
+        message: 'Invalid 2FA token',
+        success: false,
+      });
+    }
+
+    // generate token
+    const token = jwt.sign({ userId: user._id, isAdmin: user.isAdmin }, process.env.jwt_secret, {
+      expiresIn: "1d",
+    });
+
+    res.send({
+      message: 'Two-factor authentication successful. User logged in successfully',
+      token: token,
+      success: true,
+    });
+  } catch (error) {
+    res.send({
+      message: error.message,
+      success: false,
+    });
+  }
+});
+
+router.post('/disable-2fa', authenticationMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.body.userId);
+
+    if (!user || !user.twoFactorEnabled) {
+      return res.status(400).send({
+        message: 'Two-factor authentication is not enabled for this user',
+        success: false,
+      });
+    }
+
+    user.twoFactorEnabled = false;
+    user.twoFactorSecret = null;
+    await user.save();
+
+    res.send({
+      message: 'Two-factor authentication disabled successfully',
+      success: true,
+    });
+  } catch (error) {
+    res.send({
       message: error.message,
       success: false,
     });

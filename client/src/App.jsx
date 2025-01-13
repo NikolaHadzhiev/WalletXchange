@@ -17,6 +17,8 @@ import PublicRoute from './components/PublicRoute'
 import Transactions from './pages/Transactions/TransactionsPage'
 import Requests from './pages/Requests/RequestsPage'
 import Users from './pages/Users/UsersPage'
+import VerifyTwoFactorAuth from './pages/TwoFactorAuth/Verify2FAPage'
+import EnableTwoFactorAuth from './pages/TwoFactorAuth/Enable2FAPage'
 
 function App() {
   const { loading } = useSelector((state) => state.loaders);
@@ -40,6 +42,22 @@ function App() {
             element={
               <PublicRoute>
                 <Register />
+              </PublicRoute>
+            }
+          />
+          <Route
+            path="/enable-2fa"
+            element={
+              <ProtectedRoute>
+                <EnableTwoFactorAuth />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/verify-2fa"
+            element={
+              <PublicRoute>
+                <VerifyTwoFactorAuth />
               </PublicRoute>
             }
           />
@@ -78,7 +96,7 @@ function App() {
         </Routes>
       </BrowserRouter>
     </>
-  )
+  );
 }
 
 export default App

@@ -20,12 +20,17 @@ function Login() {
       dispatch(HideLoading());
 
       if (response.success) {
-        message.success(response.message);
-
-        localStorage.setItem("token", response.data);
-        
-        // Because sometimes the home page may load before putting the data in local storage causing errors
-        window.location.href = "/"; 
+        if (response.twoFA) {
+          message.error(response.message);
+          // Redirect to a 2FA verification page
+          navigate('/verify-2fa', { state: { userId: response.userId } });
+        } 
+        else {
+          message.success(response.message);
+          localStorage.setItem("token", response.data);
+          // Because sometimes the home page may load before putting the data in local storage causing errors
+          window.location.href = "/";
+        }
       } else {
         message.error(response.message);
       }

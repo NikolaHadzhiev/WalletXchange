@@ -10,6 +10,9 @@ export const VerifyAccount = async (payload) => {
 
     return data;
   } catch (error) {
+    if(!error.response) {
+      return { message: "Server error" };
+    }
     return error.response.data;
   }
 };
@@ -24,6 +27,9 @@ export const TransferMoney = async (payload) => {
     
     return data;
   } catch (error) {
+    if(!error.response) {
+      return { message: "Server error" };
+    }
     return error.response.data;
   }
 };
@@ -37,6 +43,9 @@ export const GetTransactionsOfUser = async () => {
     return data;
   } 
   catch (error) {
+    if(!error.response) {
+      return { message: "Server error" };
+    }
     return error.response.data;
   }
 }
@@ -48,6 +57,9 @@ export const DepositMoney = async (payload) => {
 
     return data;
   } catch (error) {
+    if(!error.response) {
+      return { message: "Server error" };
+    }
     return error.response.data;
   }
 }

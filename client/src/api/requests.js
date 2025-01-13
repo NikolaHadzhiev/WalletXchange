@@ -10,6 +10,9 @@ export const GetAllRequestsByUser = async () => {
     return data;
   } 
   catch (error) {
+    if(!error.response) {
+      return { message: "Server error" };
+    }
     return error.response.data;
   }
 };
@@ -25,6 +28,9 @@ export const SendRequest = async (request) => {
     return data;
   } 
   catch (error) {
+    if(!error.response) {
+      return { message: "Server error" };
+    }
     return error.response.data;
   }
 };
@@ -39,6 +45,9 @@ export const UpdateRequestStatus = async (request) => {
     
     return data;
   } catch (error) {
+    if(!error.response) {
+      return { message: "Server error" };
+    }
     return error.response.data;
   }
 }

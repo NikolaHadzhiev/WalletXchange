@@ -6,6 +6,11 @@ export const LoginUser = async (payload) => {
     const { data } = await axiosInstance.post("/api/users/login", payload);
     return data;
   } catch (error) {
+
+    if(!error.response) {
+      return { message: "Server error" };
+    }
+
     return error.response.data;
   }
 };
@@ -16,6 +21,35 @@ export const RegisterUser = async (payload) => {
     const { data } = await axiosInstance.post("/api/users/register", payload);
     return data;
   } catch (error) {
+    if(!error.response) {
+      return { message: "Server error" };
+    }
+    return error.response.data;
+  }
+};
+
+//enable 2FA
+export const Enable2FA = async (payload) => {
+  try {
+    const { data } = await axiosInstance.post("/api/users/enable-2fa", payload);
+    return data;
+  } catch (error) {
+    if(!error.response) {
+      return { message: "Server error" };
+    }
+    return error.response.data;
+  }
+};
+
+//verify 2FA
+export const Verify2FA = async (payload) => {
+  try {
+    const { data } = await axiosInstance.post("/api/users/verify-2fa", payload);
+    return data;
+  } catch (error) {
+    if(!error.response) {
+      return { message: "Server error" };
+    }
     return error.response.data;
   }
 };
@@ -28,6 +62,9 @@ export const GetUserInfo = async () => {
 
     return data
   } catch(error) {
+    if(!error.response) {
+      return { message: "Server error" };
+    }
     return error.response.data;
   }
 }
@@ -39,6 +76,9 @@ export const GetAllUsers = async () => {
 
     return data;
   } catch (error) {
+    if(!error.response) {
+      return { message: "Server error" };
+    }
     return error.response.data;
   }
 }
@@ -53,6 +93,9 @@ export const UpdateUserVerifiedStatus = async (payload) => {
     
     return data;
   } catch (error) {
+    if(!error.response) {
+      return { message: "Server error" };
+    }
     return error.response.data;
   }
 }
@@ -69,6 +112,9 @@ export const RequestUserDelete = async (payload) => {
     return data;
   }
   catch (error) {
+    if(!error.response) {
+      return { message: "Server error" };
+    }
     return error.response.data
   }
 }
@@ -83,6 +129,9 @@ export const DeleteUser = async (payload) => {
     return data;
   }
   catch (error) {
+    if(!error.response) {
+      return { message: "Server error" };
+    }
     return error.response.data
   }
 }

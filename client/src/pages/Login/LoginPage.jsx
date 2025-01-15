@@ -1,41 +1,60 @@
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Col, Form, Row, Input, message } from "antd";
 import { LoginUser } from "../../api/users";
 import { HideLoading, ShowLoading } from "../../state/loaderSlice";
 import { useDispatch } from "react-redux";
 
-
 function Login() {
-
   const navigate = useNavigate();
   const dispatch = useDispatch();
+  const [isLockedOut, setIsLockedOut] = useState(false);
+  const [lockoutTime, setLockoutTime] = useState(0);
+
+  useEffect(() => {
+    let interval;
+    if (isLockedOut && lockoutTime > 0) {
+      interval = setInterval(() => {
+        setLockoutTime((prevTime) => {
+          if (prevTime <= 1) {
+            clearInterval(interval);
+            setIsLockedOut(false);
+            return 0;
+          }
+          return prevTime - 1;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(interval); // Cleanup on unmount
+  }, [isLockedOut, lockoutTime]);
 
   const onFinish = async (values) => {
     try {
-
       dispatch(ShowLoading());
-
       const response = await LoginUser(values);
-
       dispatch(HideLoading());
 
       if (response.success) {
         if (response.twoFA) {
           message.error(response.message);
-          // Redirect to a 2FA verification page
           navigate('/verify-2fa', { state: { userId: response.userId } });
-        } 
-        else {
+        } else {
           message.success(response.message);
           localStorage.setItem("token", response.data);
-          // Because sometimes the home page may load before putting the data in local storage causing errors
           window.location.href = "/";
         }
       } else {
-        message.error(response.message);
+        if (response.remainingTime) {
+          // Handle lockout
+          setIsLockedOut(true);
+          setLockoutTime(response.remainingTime);
+          message.error(`Too many attempts. Try again in ${response.remainingTime}s.`);
+        } else {
+          console.log(response);
+          message.error(response.message);
+        }
       }
-    } 
-    catch (error) {
+    } catch (error) {
       dispatch(HideLoading());
       message.error(error.message);
     }
@@ -84,9 +103,14 @@ function Login() {
             </Col>
           </Row>
 
-          <button className="primary-contained-btn w-100" type="submit">
-            Login
+          <button
+            className="primary-contained-btn w-100"
+            type="submit"
+            disabled={isLockedOut}
+          >
+            {isLockedOut ? `Try again in ${lockoutTime}s` : "Login"}
           </button>
+
           <h1
             className="text-sm underline mt-2"
             onClick={() => navigate("/register")}

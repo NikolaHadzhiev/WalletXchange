@@ -41,6 +41,19 @@ export const Enable2FA = async (payload) => {
   }
 };
 
+//check 2FA status
+export const Check2FAStatus = async (payload) => {
+  try {
+    const { data } = await axiosInstance.post("/api/users/check-2fa", payload);
+    return data;
+  } catch (error) {
+    if(!error.response) {
+      return { message: "Server error" };
+    }
+    return error.response.data;
+  }
+};
+
 //verify 2FA
 export const Verify2FA = async (payload) => {
   try {
@@ -48,6 +61,19 @@ export const Verify2FA = async (payload) => {
     return data;
   } catch (error) {
     if(!error.response) {
+      return { message: "Server error" };
+    }
+    return error.response.data;
+  }
+};
+
+//disable 2FA
+export const Disable2FA = async (payload) => {
+  try {
+    const { data } = await axiosInstance.post("/api/users/disable-2fa", payload);
+    return data;
+  } catch (error) {
+    if (!error.response) {
       return { message: "Server error" };
     }
     return error.response.data;

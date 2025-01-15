@@ -19,6 +19,7 @@ import Requests from './pages/Requests/RequestsPage'
 import Users from './pages/Users/UsersPage'
 import VerifyTwoFactorAuth from './pages/TwoFactorAuth/Verify2FAPage'
 import EnableTwoFactorAuth from './pages/TwoFactorAuth/Enable2FAPage'
+import DDoSProtectionPage from './pages/DDOS/DDoSProtectionPage'
 
 function App() {
   const { loading } = useSelector((state) => state.loaders);
@@ -61,6 +62,10 @@ function App() {
               </PublicRoute>
             }
           />
+          <Route path="/ddos-protection" element={
+            <PublicRoute>
+              <DDoSProtectionPage />
+            </PublicRoute>} />
           <Route
             path="/"
             element={

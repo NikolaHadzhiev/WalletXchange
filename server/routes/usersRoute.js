@@ -6,6 +6,7 @@ const Request = require("../models/requestsModel");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { authenticationMiddleware, authorizationMiddleware } = require("../middlewares/authMiddleware");
+const { loginRateLimiter } = require("../middlewares/failedLoginTimeoutMiddleware");
 const speakeasy = require('speakeasy');
 
 // register user account
@@ -53,37 +54,34 @@ router.post("/register", async (req, res) => {
 });
 
 // login user account
-
-router.post("/login", async (req, res) => {
+router.post("/login", loginRateLimiter, async (req, res) => {
   try {
-    // check if user exists
-    let user = await User.findOne({ email: req.body.email });
+    const { email, password } = req.body;
 
+    const user = await User.findOne({ email });
     if (!user) {
-      return res.send({
+      await req.incrementAttempts();
+      return res.status(401).send({
         success: false,
-        message: "User does not exist",
+        message: "User does not exist.",
       });
     }
 
-    // check if password is correct
-    const validPassword = await bcrypt.compare(
-      req.body.password,
-      user.password
-    );
-
+    const validPassword = await bcrypt.compare(password, user.password);
     if (!validPassword) {
-      return res.send({
+      await req.incrementAttempts();
+      return res.status(401).send({
         success: false,
-        message: "Invalid password",
+        message: "Invalid password. Please try again.",
       });
     }
 
-    //check if user is verified
+    await req.resetAttempts(); // Reset attempts on successful login
+
     if (!user.isVerified) {
-      return res.send({
+      return res.status(403).send({
         success: false,
-        message: "User is not verified yet or has been suspended",
+        message: "User is not verified or has been suspended.",
       });
     }
 
@@ -96,18 +94,19 @@ router.post("/login", async (req, res) => {
       });
     }
 
-    // generate token
-    const token = jwt.sign({ userId: user._id, isAdmin: user.isAdmin }, process.env.jwt_secret, {
-      expiresIn: "1d",
-    });
+    const token = jwt.sign(
+      { userId: user._id, isAdmin: user.isAdmin },
+      process.env.jwt_secret,
+      { expiresIn: "1d" }
+    );
 
     res.send({
-      message: "User logged in successfully",
+      message: "User logged in successfully.",
       data: token,
       success: true,
     });
   } catch (error) {
-    res.send({
+    res.status(500).send({
       message: error.message,
       success: false,
     });
@@ -192,7 +191,7 @@ router.post("/update-user-verified-status", authenticationMiddleware, authorizat
 });
 
 // update user request delete
-router.post("/request-delete", authenticationMiddleware, authorizationMiddleware, async (req, res) => {
+router.post("/request-delete", authenticationMiddleware, async (req, res) => {
   try {
 
     await User.findByIdAndUpdate(req.body._id, {
@@ -306,6 +305,29 @@ router.post('/enable-2fa', authenticationMiddleware, async (req, res) => {
   }
 });
 
+router.post('/check-2fa', async (req, res) => {
+  try {
+    const user = await User.findById(req.body.userId);
+    if (!user || !user.twoFactorEnabled) {
+      return res.status(200).send({
+        message: 'Two-factor authentication is not enabled for this user',
+        success: true,
+        isEnabled: false
+      });
+    }
+
+    res.status(400).send({
+      message: 'Two-Factor Authentication is already enabled.',
+      success: true,
+      isEnabled: true
+    });
+  } catch (error) {
+    res.send({
+      message: error.message,
+      success: false,
+    });
+  }
+});
 
 router.post('/verify-2fa', async (req, res) => {
   try {

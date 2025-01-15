@@ -113,7 +113,7 @@ function DefaultLayout({ children }) {
               ></i>
             )}
           </div>
-          <div>
+          <div className="ml-20-p">
             <h1 className="text-xl text-white">WALLET X CHANGE</h1>
           </div>
           <div>

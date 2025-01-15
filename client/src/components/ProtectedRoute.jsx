@@ -6,11 +6,20 @@ import { useDispatch, useSelector } from "react-redux";
 import { SetUser, ReloadUser } from "../state/userSlice";
 import { HideLoading, ShowLoading } from "../state/loaderSlice";
 import DefaultLayout from "./DefaultLayout";
+import { CheckDDoSProtection } from "../api/ddos"; // Import the DDoS protection check
 
 function ProtectedRoute({ shouldBeAdmin = false, children }) {
   const { user, reloadUser } = useSelector((state) => state.users);
   const dispatch = useDispatch();
   const navigate = useNavigate();
+
+  const checkRateLimiting = async () => {
+    const response = await CheckDDoSProtection(); // Call the new DDoS protection function
+
+    if (response.message && response.message.includes("Too many requests")) {
+      navigate("/ddos-protection"); // Redirect to DDoS protection page
+    }
+  };
 
   const getData = useCallback(async () => {
     try {
@@ -34,6 +43,8 @@ function ProtectedRoute({ shouldBeAdmin = false, children }) {
   }, [dispatch, navigate]);
 
   useEffect(() => {
+    checkRateLimiting(); // Check DDoS protection when the component mounts
+
     if (localStorage.getItem("token")) {
       if (!user) {
         getData();

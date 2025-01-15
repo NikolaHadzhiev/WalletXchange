@@ -1,26 +1,46 @@
 import { useSelector } from "react-redux";
 import { message } from "antd";
 import PageTitle from "../../components/PageTitle";
-import { RequestUserDelete } from "../../api/users";
+import { Disable2FA, RequestUserDelete } from "../../api/users";
 import { ReloadUser } from "../../state/userSlice";
 import { ShowLoading, HideLoading } from "../../state/loaderSlice";
 import { useDispatch } from "react-redux";
+import { useNavigate } from "react-router-dom";
 
 function Home() {
   const { user } = useSelector((state) => state.users);
   const dispatch = useDispatch();
+  const navigate = useNavigate();
+
+  const handleEnable2FA = async () => {
+      navigate("/enable-2fa");
+  };
+
+  const handleDisable2FA = async () => {
+    try {
+      dispatch(ShowLoading());
+      const response = await Disable2FA({ _id: user._id });
+      dispatch(HideLoading());
+      if (response.success) {
+        message.success(response.message);
+        dispatch(ReloadUser(true));
+      } else {
+        message.error(response.message);
+      }
+    } catch (error) {
+      dispatch(HideLoading());
+      message.error(error.message);
+    }
+  };
 
   const requestUserDelete = async () => {
     try {
       dispatch(ShowLoading());
-
       const response = await RequestUserDelete({
         _id: user._id,
         requestDelete: true,
       });
-
       dispatch(HideLoading());
-
       if (response.success) {
         message.success(response.message);
         dispatch(ReloadUser(true));
@@ -36,9 +56,7 @@ function Home() {
   return (
     <div className="flex flex-col items-center m-2">
       <PageTitle
-        title={`
-              Hello  ${user.firstName} ${user.lastName} ,  Welcome to WALLETXCHANGE
-         `}
+        title={`Hello  ${user.firstName} ${user.lastName}, Welcome to WALLETXCHANGE`}
       />
       <div className="bg-secondary p-2 mt-7 w-800 br-3 flex flex-col gap-1 uppercase">
         <div className="flex justify-between">
@@ -71,7 +89,7 @@ function Home() {
           <h1 className="text-md">{user.phoneNumber}</h1>
         </div>
         <div className="flex justify-between">
-          <h1 className="text-md">Identifycation Type</h1>
+          <h1 className="text-md">Identification Type</h1>
           <h1 className="text-md">{user.identificationType}</h1>
         </div>
         <div className="flex justify-between">
@@ -80,8 +98,19 @@ function Home() {
         </div>
       </div>
 
-      {!user.isAdmin && (
-        <div className="flex justify-center items-center mt-3">
+      <div className="flex justify-center items-baseline mt-3">
+        <div className="flex gap-1 mr-1">
+          {user.twoFactorEnabled ? (
+            <button className="tfa-disable-btn" onClick={handleDisable2FA}>
+              Disable 2FA
+            </button>
+          ) : (
+            <button className="tfa-btn" onClick={handleEnable2FA}>
+              Enable 2FA
+            </button>
+          )}
+        </div>
+        {!user.isAdmin && (
           <div className="flex gap-1">
             {!user.requestDelete ? (
               <button
@@ -96,8 +125,8 @@ function Home() {
               </div>
             )}
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

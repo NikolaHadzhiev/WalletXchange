@@ -17,7 +17,7 @@ const redisClient = createClient({
     console.error('Redis connection error:', err);
   });
 
-const BLOCK_DURATION = 0.1 * 60 * 1000; // Block duration in milliseconds (1 minute)
+const BLOCK_DURATION = 1 * 60 * 1000; // Block duration in milliseconds (1 minute)
 
 // Rate limiter using Redis to store request counts
 const limiter = rateLimit({

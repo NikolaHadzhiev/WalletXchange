@@ -1,21 +1,27 @@
 import { Form, Input, Button, message } from "antd";
 import { Verify2FA } from "../../api/users";
 import { useLocation } from "react-router-dom";
+import DOMPurify from "dompurify"; // For sanitizing inputs
 
 function VerifyTwoFactorAuth () {
   const location = useLocation(); // To get userId passed during the login
 
   const onFinish = async (values) => {
     try {
+      // Sanitize the token input to prevent any malicious script
+      const sanitizedToken = DOMPurify.sanitize(values.token);
+
+      // Proceed with the 2FA verification request
       const response = await Verify2FA({
         userId: location.state?.userId,
-        token: values.token,
+        token: sanitizedToken,
       });
 
       if (response.success) {
         message.success(response.message);
         localStorage.setItem("token", response.token);
-        // Because sometimes the home page may load before putting the data in local storage causing errors
+        
+        // Redirect to home page after storing the token in local storage
         window.location.href = "/";
       } else {
         message.error(response.message);

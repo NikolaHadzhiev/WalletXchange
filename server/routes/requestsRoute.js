@@ -4,7 +4,12 @@ const {authenticationMiddleware } = require("../middlewares/authMiddleware");
 const User = require("../models/userModel");
 const DeletedUser = require("../models/deletedUserModel");
 const Transaction = require("../models/transactionModel");
+const { body, validationResult } = require("express-validator");
+const { JSDOM } = require("jsdom");
+const DOMPurify = require("dompurify");
 
+const window = new JSDOM("").window;
+const purify = DOMPurify(window);
 
 // get all requests for a user
 router.post("/get-all-requests-by-user", authenticationMiddleware, async (req, res) => {
@@ -47,94 +52,160 @@ router.post("/get-all-requests-by-user", authenticationMiddleware, async (req, r
 });
 
 // send a request to another user
-router.post("/send-request", authenticationMiddleware, async (req, res) => {
-  try {
+router.post(
+  "/send-request",
+  authenticationMiddleware,
+  [
+    // Validation middleware for inputs
+    body("receiver")
+      .trim()
+      .isMongoId()
+      .withMessage("Invalid receiver ID format"),
+    body("amount")
+      .isFloat({ min: 0.01 })
+      .withMessage("Amount must be a positive number"),
+    body("reference").trim().escape(),
+  ],
+  async (req, res) => {
+    try {
+      // Validate input
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          message: "Validation failed",
+          errors: errors.array(),
+        });
+      }
 
-    const { receiver, amount, reference } = req.body;
+      // Sanitize inputs
+      const receiver = purify.sanitize(req.body.receiver);
+      const amount = parseFloat(req.body.amount); // Ensure `amount` is a valid number
+      const reference = purify.sanitize(req.body.reference);
 
-    const request = new Request({
-      sender: req.body.userId,
-      receiver,
-      amount,
-      description: reference,
-    });
-
-    await request.save();
-
-    const receiverUser = await User.findById(receiver);
-
-    if (receiverUser.balance < amount) {
-
-      await Request.findByIdAndUpdate(request._id, {
-        status: "rejected"
+      // Create the request
+      const request = new Request({
+        sender: req.body.userId,
+        receiver,
+        amount,
+        description: reference,
       });
+
+      await request.save();
+
+      const receiverUser = await User.findById(receiver);
+
+      // Check receiver's balance
+      if (receiverUser.balance < amount) {
+        await Request.findByIdAndUpdate(request._id, {
+          status: "rejected",
+        });
+
+        return res.send({
+          data: request,
+          message: "Receiver of the request does not have enough money",
+          success: false,
+        });
+      }
 
       res.send({
         data: request,
-        message: "Reciever of the request does not have enough money",
-        success: false,
+        message: "Request sent successfully",
+        success: true,
       });
-
-      return;
+    } catch (error) {
+      res.status(500).json({ error: error.message });
     }
-
-    res.send({
-      data: request,
-      message: "Request sent successfully",
-      success: true,
-    });
-
-  } 
-  catch (error) {
-    res.status(500).json({ error: error.message });
   }
-});
+);
 
 // update a request status
-router.post("/update-request-status", authenticationMiddleware, async (req, res) => {
-  try {
+router.post(
+  "/update-request-status",
+  authenticationMiddleware,
+  [
+    // Validation middleware for inputs
+    body("_id")
+      .trim()
+      .isMongoId()
+      .withMessage("Invalid request ID format"),
+    body("status")
+      .isIn(["accepted", "rejected", "pending"])
+      .withMessage("Invalid status value"),
+    body("receiver._id")
+      .trim()
+      .isMongoId()
+      .withMessage("Invalid receiver ID format"),
+    body("sender._id")
+      .trim()
+      .isMongoId()
+      .withMessage("Invalid sender ID format"),
+    body("amount")
+      .isFloat({ min: 0.01 })
+      .withMessage("Amount must be a positive number"),
+    body("description").trim().escape(),
+  ],
+  async (req, res) => {
+    try {
+      // Validate input
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          message: "Validation failed",
+          errors: errors.array(),
+        });
+      }
 
-    if (req.body.status === "accepted") {
-      // create a transaction
-      const transaction = new Transaction({
-        sender: req.body.receiver._id,
-        receiver: req.body.sender._id,
-        amount: req.body.amount,
-        reference: req.body.description,
-        status: "success",
+      // Sanitize inputs
+      const sanitizedRequestId = purify.sanitize(req.body._id);
+      const sanitizedStatus = purify.sanitize(req.body.status);
+      const sanitizedReceiverId = purify.sanitize(req.body.receiver._id);
+      const sanitizedSenderId = purify.sanitize(req.body.sender._id);
+      const sanitizedAmount = parseFloat(req.body.amount);
+      const sanitizedDescription = purify.sanitize(req.body.description);
+
+      if (sanitizedStatus === "accepted") {
+        // Create a transaction
+        const transaction = new Transaction({
+          sender: sanitizedReceiverId,
+          receiver: sanitizedSenderId,
+          amount: sanitizedAmount,
+          reference: sanitizedDescription,
+          status: "success",
+        });
+
+        await transaction.save();
+
+        // Add the amount to the receiver
+        await User.findByIdAndUpdate(sanitizedSenderId, {
+          $inc: { balance: sanitizedAmount },
+        });
+
+        // Deduct the amount from the sender
+        await User.findByIdAndUpdate(sanitizedReceiverId, {
+          $inc: { balance: -sanitizedAmount },
+        });
+      }
+
+      // Update the request status
+      await Request.findByIdAndUpdate(sanitizedRequestId, {
+        status: sanitizedStatus,
       });
 
-      await transaction.save();
-
-      // add the amount to the receiver
-      await User.findByIdAndUpdate(req.body.sender._id, {
-        $inc: { balance: req.body.amount },
+      res.send({
+        data: null,
+        message: "Request status updated successfully",
+        success: true,
       });
-
-      // deduct the amount from the sender
-      await User.findByIdAndUpdate(req.body.receiver._id, {
-        $inc: { balance: -req.body.amount },
+    } catch (error) {
+      res.status(500).send({
+        data: null,
+        message: error.message,
+        success: false,
       });
     }
-
-    await Request.findByIdAndUpdate(req.body._id, {
-      status: req.body.status,
-    });
-
-    res.send({
-      data: null,
-      message: "Request status updated successfully",
-      success: true,
-    });
-
-  } 
-  catch (error) {
-    res.send({
-      data: error,
-      message: error.message,
-      success: false,
-    });
   }
-});
+);
 
 module.exports = router;

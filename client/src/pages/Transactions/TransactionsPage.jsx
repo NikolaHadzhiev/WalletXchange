@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import PageTitle from "../../components/PageTitle";
 import { Table, message } from "antd";
 import { TransferMoneyModal } from "./TransferMoneyModal";
+import { ReloadUser } from "../../state/userSlice";
 import { HideLoading, ShowLoading } from "../../state/loaderSlice";
 import { useDispatch, useSelector } from "react-redux";
 import { GetTransactionsOfUser } from "../../api/transactions";
@@ -88,10 +89,12 @@ function Transactions() {
         setData(response.data);
       }
   
+      dispatch(ReloadUser(true));
       dispatch(HideLoading());
     } catch (error) {
       dispatch(HideLoading());
       message.error(error.message);
+      dispatch(ReloadUser(true))
     }
   }, [dispatch]);
 

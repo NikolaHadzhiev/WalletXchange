@@ -4,6 +4,7 @@ import { Col, Form, Row, Input, message } from "antd";
 import { LoginUser } from "../../api/users";
 import { HideLoading, ShowLoading } from "../../state/loaderSlice";
 import { useDispatch } from "react-redux";
+import DOMPurify from "dompurify";
 
 function Login() {
   const navigate = useNavigate();
@@ -28,10 +29,18 @@ function Login() {
     return () => clearInterval(interval); // Cleanup on unmount
   }, [isLockedOut, lockoutTime]);
 
+  const sanitizeInput = (input) => DOMPurify.sanitize(input);
+
   const onFinish = async (values) => {
     try {
+      // Sanitize email and password
+    const sanitizedValues = {
+      email: sanitizeInput(values.email),
+      password: sanitizeInput(values.password),
+    };
+
       dispatch(ShowLoading());
-      const response = await LoginUser(values);
+      const response = await LoginUser(sanitizedValues);
       dispatch(HideLoading());
 
       if (response.success) {

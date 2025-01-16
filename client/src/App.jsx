@@ -24,7 +24,6 @@ import DDoSProtectionPage from './pages/DDOS/DDoSProtectionPage'
 function App() {
   const { loading } = useSelector((state) => state.loaders);
 
-
   return (
     <>
       {loading && <Loader />}

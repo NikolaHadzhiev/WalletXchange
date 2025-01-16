@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { RegisterUser } from "../../api/users";
 import { useDispatch } from "react-redux";
 import { HideLoading, ShowLoading } from "../../state/loaderSlice";
+import DOMPurify from "dompurify";
 
 function Register() {
   const navigate = useNavigate();
@@ -10,11 +11,14 @@ function Register() {
 
   const onFinish = async (values) => {
     try {
-      
+      // Sanitize all inputs before sending them to the server
+      const sanitizedValues = {};
+      for (const key in values) {
+        sanitizedValues[key] = DOMPurify.sanitize(values[key]);
+      }
+
       dispatch(ShowLoading());
-
-      const response = await RegisterUser(values);
-
+      const response = await RegisterUser(sanitizedValues);
       dispatch(HideLoading());
 
       if (response.success) {
@@ -24,10 +28,8 @@ function Register() {
         message.error(response.message);
       }
     } catch (error) {
-
       dispatch(HideLoading());
       message.error(error.message);
-
     }
   };
 
@@ -49,6 +51,10 @@ function Register() {
                     required: true,
                     message: "Please input your first name!",
                   },
+                  {
+                    pattern: /^[A-Za-z\s]{1,50}$/,
+                    message: "First name must be 1-50 letters only.",
+                  },
                 ]}
               >
                 <Input />
@@ -63,6 +69,10 @@ function Register() {
                     required: true,
                     message: "Please input your last name!",
                   },
+                  {
+                    pattern: /^[A-Za-z\s]{1,50}$/,
+                    message: "Last name must be 1-50 letters only.",
+                  },
                 ]}
               >
                 <Input />
@@ -74,13 +84,13 @@ function Register() {
                 name="email"
                 rules={[
                   {
-                    type: 'email',
-                    message: 'The input is not valid E-mail!',
-                  },
-                  {
                     required: true,
                     message: "Please input your email!",
-                  }
+                  },
+                  {
+                    type: "email",
+                    message: "Please input a valid email!",
+                  },
                 ]}
               >
                 <Input />
@@ -94,6 +104,10 @@ function Register() {
                   {
                     required: true,
                     message: "Please input your phone number!",
+                  },
+                  {
+                    pattern: /^\d{10,15}$/,
+                    message: "Phone number must be 10-15 digits.",
                   },
                 ]}
               >
@@ -109,23 +123,27 @@ function Register() {
                     required: true,
                     message: "Please input your address!",
                   },
+                  {
+                    pattern: /^[A-Za-z0-9\s,.'-]{1,100}$/,
+                    message: "Address must be 1-100 characters long and not contain special characters.",
+                  },
                 ]}
               >
                 <Input />
               </Form.Item>
             </Col>
             <Col span={6}>
-              <Form.Item 
-                 label="Identification Type" 
-                 name="identificationType"
-                 rules={[
-                    {
-                      required: true,
-                      message: "Please choose identification type!",
-                    },
-                  ]}
-                 >
-              <Select>
+              <Form.Item
+                label="Identification Type"
+                name="identificationType"
+                rules={[
+                  {
+                    required: true,
+                    message: "Please choose an identification type!",
+                  },
+                ]}
+              >
+                <Select>
                   <Select.Option value="NATIONAL ID">National ID</Select.Option>
                   <Select.Option value="PASSPORT">Passport</Select.Option>
                   <Select.Option value="DRIVING LICENSE">Driving License</Select.Option>
@@ -144,6 +162,10 @@ function Register() {
                     required: true,
                     message: "Please input your identification number!",
                   },
+                  {
+                    pattern: /^[A-Za-z0-9]{1,20}$/,
+                    message: "Identification number must be 1-20 alphanumeric characters.",
+                  },
                 ]}
               >
                 <Input />
@@ -159,6 +181,11 @@ function Register() {
                     required: true,
                     message: "Please input your password!",
                   },
+                  {
+                    pattern: /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/,
+                    message:
+                      "Password must be at least 8 characters long and include letters and numbers.",
+                  },
                 ]}
               >
                 <Input.Password />
@@ -169,7 +196,7 @@ function Register() {
                 label="Confirm Password"
                 name="confirmPassword"
                 hasFeedback
-                dependencies={['password']}
+                dependencies={["password"]}
                 rules={[
                   {
                     required: true,
@@ -177,11 +204,10 @@ function Register() {
                   },
                   ({ getFieldValue }) => ({
                     validator(_, value) {
-                      if (!value || getFieldValue('password') === value) {
+                      if (!value || getFieldValue("password") === value) {
                         return Promise.resolve();
                       }
-
-                      return Promise.reject(new Error('The new password that you entered do not match!'));
+                      return Promise.reject(new Error("The passwords do not match!"));
                     },
                   }),
                 ]}

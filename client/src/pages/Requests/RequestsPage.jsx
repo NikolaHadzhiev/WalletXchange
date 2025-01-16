@@ -41,6 +41,7 @@ function Requests() {
         });
       }
 
+      dispatch(ReloadUser(true));
       dispatch(HideLoading());
     } catch (error) {
       dispatch(HideLoading());

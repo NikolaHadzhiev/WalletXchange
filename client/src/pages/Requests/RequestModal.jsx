@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Modal, Form, message, Input, InputNumber } from "antd";
 import { useDispatch, useSelector } from "react-redux";
 import { VerifyAccount } from "../../api/transactions";
 import { ShowLoading, HideLoading } from "../../state/loaderSlice";
 import { SendRequest } from "../../api/requests";
+import DOMPurify from "dompurify"; // Import DOMPurify for sanitization
 
 function RequestModal({
   showNewRequestModal,
@@ -16,13 +17,14 @@ function RequestModal({
 
   const { user } = useSelector((state) => state.users);
   const [isVerified, setIsVerified] = useState("");
+  const [isReceiverValid, setIsReceiverValid] = useState(false);
 
   const verifyAccount = async () => {
     try {
       dispatch(ShowLoading());
 
       const response = await VerifyAccount({
-        receiver: form.getFieldValue("receiver"),
+        receiver: DOMPurify.sanitize(form.getFieldValue("receiver")),
       });
 
       dispatch(HideLoading());
@@ -31,6 +33,10 @@ function RequestModal({
         setIsVerified("yes");
       } else {
         setIsVerified("no");
+
+        if (!response.data) {
+          message.error(response.message);
+        }
       }
     } catch (error) {
       dispatch(HideLoading());
@@ -38,15 +44,28 @@ function RequestModal({
     }
   };
 
+  const validateReceiver = (receiverAccount) => {
+    // Regular expression to ensure no special characters or spaces are present
+    const isValid = /^[a-zA-Z0-9]+$/.test(receiverAccount) && receiverAccount.trim() !== "";
+    setIsReceiverValid(isValid);
+  };
+
   const onFinish = async (values) => {
     try {
       dispatch(ShowLoading());
+
+      // Sanitizing inputs before sending them
+      const sanitizedReceiver = DOMPurify.sanitize(form.getFieldValue("receiver").trim()); // Remove any unwanted spaces
+      const sanitizedDescription = DOMPurify.sanitize(values.reference || ""); // Sanitize description to avoid XSS
+      const sanitizedAmount = Math.abs(values.amount); // Ensure amount is a positive number
 
       const payload = {
         ...values,
         sender: user._id,
         status: "success",
-        reference: values.reference || "no description",
+        reference: sanitizedDescription, // Use sanitized description
+        receiver: sanitizedReceiver, // Use sanitized receiver
+        amount: sanitizedAmount, // Ensure amount is sanitized
       };
 
       const response = await SendRequest(payload);
@@ -56,10 +75,8 @@ function RequestModal({
         setShowNewRequestModal(false);
         message.success(response.message);
       } else {
-
         setShowNewRequestModal(false);
         message.error(response.message);
-        
       }
 
       dispatch(HideLoading());
@@ -68,6 +85,10 @@ function RequestModal({
       dispatch(HideLoading());
     }
   };
+
+  useEffect(() => {
+    form.setFieldsValue({ receiver: "", amount: "", reference: "" }); // Reset fields when modal is opened
+  }, [showNewRequestModal]);
 
   return (
     <div>
@@ -80,13 +101,32 @@ function RequestModal({
       >
         <Form layout="vertical" form={form} onFinish={onFinish}>
           <div className="flex gap-2 items-center">
-            <Form.Item label="Account Number" name="receiver" className="w-100">
-              <Input />
+            <Form.Item
+              label="Account Number"
+              name="receiver"
+              className="w-100"
+              rules={[
+                {
+                  required: true,
+                  message: "Please input your receiver!",
+                },
+                {
+                  pattern: /^[a-zA-Z0-9]*$/, // Validate no special characters
+                  message: "Forbidden characters.",
+                },
+              ]}
+            >
+              <Input
+                onChange={(e) => validateReceiver(e.target.value)} // Validate receiver on input change
+              />
             </Form.Item>
             <button
-              className="primary-contained-btn mt-1"
+              className={`primary-contained-btn mt-1 ${
+                !isReceiverValid ? "grayed-out" : ""
+              }`}
               type="button"
               onClick={verifyAccount}
+              disabled={!isReceiverValid} // Disable "VERIFY" button if receiver is not valid
             >
               VERIFY
             </button>
@@ -110,11 +150,7 @@ function RequestModal({
               },
             ]}
           >
-            <InputNumber
-              min={1}
-              step={0.01}
-              controls={false}
-            />
+            <InputNumber min={1} step={0.01} controls={false} />
           </Form.Item>
 
           <Form.Item label="Description" name="reference">

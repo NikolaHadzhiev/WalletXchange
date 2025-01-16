@@ -3,42 +3,46 @@ import StripeCheckout from "react-stripe-checkout";
 import { DepositMoney } from "../../api/transactions";
 import { useDispatch } from "react-redux";
 import { HideLoading, ShowLoading } from "../../state/loaderSlice";
+import DOMPurify from "dompurify"; // For sanitizing data
 
-function DepositModal({ showDepositModal, setShowDepositModal, reloadData}) {
-
+function DepositModal({ showDepositModal, setShowDepositModal, reloadData }) {
   const [form] = Form.useForm();
   const dispatch = useDispatch();
 
   const onToken = async (token) => {
-
-    console.log(token);
-
     try {
+      // Validate the amount before proceeding
+      const amount = form.getFieldValue("amount");
+      if (!amount || amount <= 0) {
+        message.error("Please enter a valid amount.");
+        return;
+      }
 
       dispatch(ShowLoading());
 
       const response = await DepositMoney({
         token,
-        amount: form.getFieldValue("amount"),
+        amount,
       });
 
       dispatch(HideLoading());
 
+      // Sanitize response message to prevent XSS
+      const sanitizedMessage = DOMPurify.sanitize(response.message);
+
       if (response.success) {
-        
         reloadData();
         setShowDepositModal(false);
-        message.success(response.message);
-
+        message.success(sanitizedMessage);
       } else {
-        message.error(response.message);
+        message.error(sanitizedMessage);
       }
-    } 
-    catch (error) {
-
+    } catch (error) {
       dispatch(HideLoading());
-      message.error(error.message);
-
+      
+      // Sanitize error message to avoid exposing sensitive info
+      const sanitizedErrorMessage = DOMPurify.sanitize(error.message);
+      message.error(sanitizedErrorMessage);
     }
   };
 
@@ -74,7 +78,7 @@ function DepositModal({ showDepositModal, setShowDepositModal, reloadData}) {
             <StripeCheckout
               token={onToken}
               currency="USD"
-              amount={form.getFieldValue("amount")}
+              amount={form.getFieldValue("amount") * 100} // Convert to cents for Stripe
               shippingAddress
               stripeKey="pk_test_51P8KILJu27FG0r8818B58hMz1ejeheU6F84tFUXtmcvkRgc4ofbw2zEejUwPTTE38LoqB4GZZBiCVCieIBjkRTXW00fqLAGsNI"
             >

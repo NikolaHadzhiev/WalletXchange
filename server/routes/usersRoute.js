@@ -8,110 +8,193 @@ const jwt = require("jsonwebtoken");
 const { authenticationMiddleware, authorizationMiddleware } = require("../middlewares/authMiddleware");
 const { loginRateLimiter } = require("../middlewares/failedLoginTimeoutMiddleware");
 const speakeasy = require('speakeasy');
+const { body, validationResult } = require("express-validator");
+const DOMPurify = require("dompurify");
+const { JSDOM } = require("jsdom");
+
+// DOMPurify setup for server-side sanitization
+const window = new JSDOM("").window;
+const purify = DOMPurify(window);
 
 // register user account
-router.post("/register", async (req, res) => {
-  try {
+router.post(
+  "/register",
+  [
+    // Validation and sanitization middleware
+    body("firstName")
+      .matches(/^[A-Za-z\s]{1,50}$/)
+      .withMessage("First name must be 1-50 letters only")
+      .customSanitizer((value) => purify.sanitize(value.trim())),
+    body("lastName")
+      .matches(/^[A-Za-z\s]{1,50}$/)
+      .withMessage("Last name must be 1-50 letters only")
+      .customSanitizer((value) => purify.sanitize(value.trim())),
+    body("email")
+      .isEmail()
+      .withMessage("Invalid email format")
+      .normalizeEmail()
+      .customSanitizer((value) => purify.sanitize(value)),
+    body("phoneNumber")
+      .matches(/^\d{10,15}$/)
+      .withMessage("Phone number must be 10-15 digits")
+      .customSanitizer((value) => purify.sanitize(value.trim())),
+    body("address")
+      .matches(/^[A-Za-z0-9\s,.'-]{1,100}$/)
+      .withMessage("Address must be 1-100 characters long")
+      .customSanitizer((value) => purify.sanitize(value.trim())),
+    body("identificationType")
+      .isIn([
+        "NATIONAL ID",
+        "PASSPORT",
+        "DRIVING LICENSE",
+        "SOCIAL CARD",
+      ])
+      .withMessage("Invalid identification type")
+      .customSanitizer((value) => purify.sanitize(value)),
+    body("identificationNumber")
+      .matches(/^[A-Za-z0-9]{1,20}$/)
+      .withMessage("Identification number must be 1-20 alphanumeric characters")
+      .customSanitizer((value) => purify.sanitize(value.trim())),
+    body("password")
+      .matches(/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/)
+      .withMessage(
+        "Password must be at least 8 characters long and include letters and numbers"
+      ),
+    body("confirmPassword")
+      .custom((value, { req }) => value === req.body.password)
+      .withMessage("Password and Confirm Password do not match"),
+  ],
+  async (req, res) => {
+    try {
+      // Validate input
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).send({
+          success: false,
+          message: "Validation failed",
+          errors: errors.array(),
+        });
+      }
 
-    // check if user provided correct confirmPassword
-    if (req.body.password !== req.body.confirmPassword) {
-      return res.send({
-        success: false,
-        message: "Password and Confirm password does not match",
+      // Check if user already exists
+      const user = await User.findOne({ email: req.body.email });
+      if (user) {
+        return res.status(400).send({
+          success: false,
+          message: "User already exists",
+        });
+      }
+
+      // Hash password
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(req.body.password, salt);
+
+      // Create new user
+      const newUser = new User({
+        firstName: purify.sanitize(req.body.firstName),
+        lastName: purify.sanitize(req.body.lastName),
+        email: purify.sanitize(req.body.email),
+        phoneNumber: purify.sanitize(req.body.phoneNumber),
+        address: purify.sanitize(req.body.address),
+        identificationType: purify.sanitize(req.body.identificationType),
+        identificationNumber: purify.sanitize(req.body.identificationNumber),
+        password: hashedPassword,
       });
-    }
 
-    // check if user already exists
-    let user = await User.findOne({ email: req.body.email });
+      await newUser.save();
 
-    if (user) {
-      return res.send({
-        success: false,
-        message: "User already exists",
-      });
-    }
-
-    // hash password
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(req.body.password, salt);
-
-    req.body.password = hashedPassword;
-
-    const newUser = new User(req.body);
-    await newUser.save();
-
-    res.send({
-      message: "User created successfully",
-      data: null,
-      success: true,
-    });
-  } catch (error) {
-    res.send({
-      message: error.message,
-      success: false,
-    });
-  }
-});
-
-// login user account
-router.post("/login", loginRateLimiter, async (req, res) => {
-  try {
-    const { email, password } = req.body;
-
-    const user = await User.findOne({ email });
-    if (!user) {
-      await req.incrementAttempts();
-      return res.status(401).send({
-        success: false,
-        message: "User does not exist.",
-      });
-    }
-
-    const validPassword = await bcrypt.compare(password, user.password);
-    if (!validPassword) {
-      await req.incrementAttempts();
-      return res.status(401).send({
-        success: false,
-        message: "Invalid password. Please try again.",
-      });
-    }
-
-    await req.resetAttempts(); // Reset attempts on successful login
-
-    if (!user.isVerified) {
-      return res.status(403).send({
-        success: false,
-        message: "User is not verified or has been suspended.",
-      });
-    }
-
-    if (user.twoFactorEnabled) {
-      return res.send({
-        message: 'Two-factor authentication required',
-        userId: user._id,
-        twoFA: true,
+      res.send({
+        message: "User created successfully",
+        data: null,
         success: true,
       });
+    } catch (error) {
+      res.status(500).send({
+        message: error.message,
+        success: false,
+      });
+    }
+  }
+);
+
+// login user account
+router.post(
+  "/login",
+  [
+    // Validate and sanitize email
+    body("email").isEmail().withMessage("Invalid email format").trim().escape(),
+    // Sanitize password (escape to remove malicious characters)
+    body("password").notEmpty().withMessage("Password is required").escape(),
+  ],
+  loginRateLimiter,
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).send({
+        success: false,
+        message: "Validation failed",
+        errors: errors.array(),
+      });
     }
 
-    const token = jwt.sign(
-      { userId: user._id, isAdmin: user.isAdmin },
-      process.env.jwt_secret,
-      { expiresIn: "1d" }
-    );
+    try {
+      const { email, password } = req.body;
 
-    res.send({
-      message: "User logged in successfully.",
-      data: token,
-      success: true,
-    });
-  } catch (error) {
-    res.status(500).send({
-      message: error.message,
-      success: false,
-    });
+      const user = await User.findOne({ email });
+      if (!user) {
+        await req.incrementAttempts();
+        return res.status(401).send({
+          success: false,
+          message: "User does not exist.",
+        });
+      }
+
+      const validPassword = await bcrypt.compare(password, user.password);
+      if (!validPassword) {
+        await req.incrementAttempts();
+        return res.status(401).send({
+          success: false,
+          message: "Invalid password. Please try again.",
+        });
+      }
+
+      await req.resetAttempts(); // Reset attempts on successful login
+
+      if (!user.isVerified) {
+        return res.status(403).send({
+          success: false,
+          message: "User is not verified or has been suspended.",
+        });
+      }
+
+      if (user.twoFactorEnabled) {
+        return res.send({
+          message: "Two-factor authentication required",
+          userId: user._id,
+          twoFA: true,
+          success: true,
+        });
+      }
+
+      const token = jwt.sign(
+        { userId: user._id, isAdmin: user.isAdmin },
+        process.env.jwt_secret,
+        { expiresIn: "1m" }
+      );
+
+      res.send({
+        message: "User logged in successfully.",
+        data: token,
+        success: true,
+      });
+    } catch (error) {
+      res.status(500).send({
+        message: error.message,
+        success: false,
+      });
+    }
   }
-});
+);
 
 // get user info
 router.post("/get-user-info", authenticationMiddleware, async (req, res) => {
@@ -329,41 +412,48 @@ router.post('/check-2fa', async (req, res) => {
   }
 });
 
-router.post('/verify-2fa', async (req, res) => {
+router.post("/verify-2fa", async (req, res) => {
   try {
+    // Sanitize token input
+    const tokenInput = purify.sanitize(req.body.token);
+
+    // Fetch user and validate 2FA status
     const user = await User.findById(req.body.userId);
     if (!user || !user.twoFactorEnabled) {
       return res.status(400).send({
-        message: 'Two-factor authentication is not enabled for this user',
+        message: "Two-factor authentication is not enabled for this user",
         success: false,
       });
     }
 
+    // Verify the sanitized token
     const verified = speakeasy.totp.verify({
       secret: user.twoFactorSecret,
-      encoding: 'base32',
-      token: req.body.token,
+      encoding: "base32",
+      token: tokenInput,
     });
 
     if (!verified) {
       return res.status(400).send({
-        message: 'Invalid 2FA token',
+        message: "Invalid 2FA token",
         success: false,
       });
     }
 
-    // generate token
-    const token = jwt.sign({ userId: user._id, isAdmin: user.isAdmin }, process.env.jwt_secret, {
-      expiresIn: "1d",
-    });
+    // Generate JWT token
+    const token = jwt.sign(
+      { userId: user._id, isAdmin: user.isAdmin },
+      process.env.jwt_secret,
+      { expiresIn: "1d" }
+    );
 
     res.send({
-      message: 'Two-factor authentication successful. User logged in successfully',
+      message: "Two-factor authentication successful. User logged in successfully",
       token: token,
       success: true,
     });
   } catch (error) {
-    res.send({
+    res.status(500).send({
       message: error.message,
       success: false,
     });

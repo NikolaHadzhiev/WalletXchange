@@ -62,4 +62,17 @@ export const DepositMoney = async (payload) => {
     }
     return error.response.data;
   }
-}
+};
+
+// verify deposit code
+export const VerifyDepositCode = async (payload) => {
+  try {
+    const { data } = await axiosInstance.post("/api/transactions/verify-deposit", payload);
+    return data;
+  } catch (error) {
+    if (!error.response) {
+      return { message: "Server error" };
+    }
+    return error.response.data;
+  }
+};

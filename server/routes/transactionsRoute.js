@@ -4,11 +4,12 @@ const Transaction = require("../models/transactionModel");
 const { authenticationMiddleware } = require("../middlewares/authMiddleware");
 const User = require("../models/userModel");
 const DeletedUser = require("../models/deletedUserModel");
+const DepositCode = require("../models/depositCodeModel");
 
 const stripe = require("stripe")(process.env.stripe_key);
-const { uuid } = require("uuidv4");
 const DOMPurify = require("dompurify"); // Import DOMPurify for sanitization
 const { JSDOM } = require("jsdom");
+const nodemailer = require("nodemailer"); // For sending emails
 
 const window = new JSDOM("").window;
 const purify = DOMPurify(window);
@@ -211,91 +212,141 @@ router.post("/deposit-money", authenticationMiddleware, async (req, res) => {
   try {
     const { token, amount, userId } = req.body;
 
-    // Validate and sanitize amount
     if (!amount || isNaN(amount) || amount <= 0) {
-      return res.send({
-        message: "Invalid amount",
-        data: null,
-        success: false,
-      });
+      return res.send({ message: "Invalid amount", data: null, success: false });
     }
 
-    // Validate and sanitize token data
     if (!token || !token.email || !token.id) {
-      return res.send({
-        message: "Invalid token data",
-        data: null,
-        success: false,
-      });
+      return res.send({ message: "Invalid token data", data: null, success: false });
     }
 
-    // Sanitize email and token id
     const sanitizedEmail = purify.sanitize(token.email.trim().toLowerCase());
     const sanitizedTokenId = purify.sanitize(token.id.trim());
 
-    // Ensure userId is a valid MongoDB ObjectId
     if (!mongoose.isValidObjectId(userId)) {
+      return res.send({ message: "Invalid user ID", data: null, success: false });
+    }
+
+    const verificationCode = Math.floor(100000 + Math.random() * 900000); // 6-digit code
+
+    // Save the verification code to MongoDB
+    const expirationTime = new Date(Date.now() + 10 * 60 * 1000); // Code valid for 10 minutes
+    await DepositCode.create({
+      userId,
+      email: sanitizedEmail,
+      stripeId: sanitizedTokenId,
+      veritificationCode: verificationCode.toString(),
+      expiresAt: expirationTime,
+    });
+
+    const transporter = nodemailer.createTransport({
+      host: process.env.email_host,
+      port: process.env.email_port,
+      secure: true,
+      auth: {
+        user: process.env.email_username,
+        pass: process.env.email_password,
+      },
+    });
+
+    const mailOptions = {
+      from: process.env.email_username,
+      to: sanitizedEmail,
+      subject: "Deposit Verification Code for WalletXChange",
+      text: `Dear user,
+
+      Your verification code for confirming your deposit of $${amount} is: ${verificationCode}.
+
+      Please enter this code within 10 minutes to complete your deposit. If you did not request this deposit, please disregard this message.
+
+      Thank you for using our service!`,
+    };
+
+    await transporter.sendMail(mailOptions);
+
+    res.send({
+      message: "A verification code has been sent to your email. Please enter the code to proceed with the deposit.",
+      success: true,
+    });
+  } catch (error) {
+    res.send({
+      message: "Error initiating deposit",
+      data: purify.sanitize(error.message),
+      success: false,
+    });
+  }
+});
+
+// verify deposit code
+router.post("/verify-deposit", authenticationMiddleware, async (req, res) => {
+  try {
+    const { userId, verificationCode, amount } = req.body;
+
+    if (!amount || isNaN(amount) || amount <= 0) {
+      return res.send({ message: "Invalid amount", data: null, success: false });
+    }
+
+    if (!mongoose.isValidObjectId(userId)) {
+      return res.send({ message: "Invalid user ID", data: null, success: false });
+    }
+
+    // Find the code in the database
+    const codeRecord = await DepositCode.findOne({ userId, veritificationCode: verificationCode });
+
+    if (!codeRecord) {
       return res.send({
-        message: "Invalid user ID",
-        data: null,
         success: false,
+        message: "Invalid or expired verification code",
       });
     }
 
     // Create a customer on Stripe
     const customer = await stripe.customers.create({
-      email: sanitizedEmail,
-      source: sanitizedTokenId,
+      email: codeRecord.email,
+      source: codeRecord.stripeId,
     });
 
-    // Create a charge on Stripe
-    const charge = await stripe.charges.create(
-      {
-        amount: amount * 100, // Stripe requires the amount in cents
-        currency: "usd",
-        customer: customer.id,
-        receipt_email: sanitizedEmail,
-        description: "Deposited to WALLETXCHANGE",
-      },
-      {
-        idempotencyKey: uuid(),
-      }
-    );
+    // Proceed with Stripe deposit
+    const charge = await stripe.charges.create({
+      amount: amount * 100,
+      currency: "usd",
+      customer: customer.id,
+      receipt_email: customer.email,
+      description: "Deposited to WALLETXCHANGE",
+    });
 
-    // Save the transaction if the charge is successful
     if (charge.status === "succeeded") {
       const newTransaction = new Transaction({
         sender: userId,
         receiver: userId,
-        amount: amount,
+        amount,
         type: "Deposit",
         reference: "Stripe deposit",
         status: "success",
       });
 
       await newTransaction.save();
-
-      // Increase the user's balance
       await User.findByIdAndUpdate(userId, {
         $inc: { balance: amount },
       });
 
+      // Delete the verification code after successful deposit
+      await DepositCode.deleteOne({ _id: codeRecord._id });
+
       res.send({
-        message: "Transaction successful",
-        data: newTransaction,
         success: true,
+        message: "Deposit successful",
       });
     } else {
       res.send({
-        message: "Transaction failed",
-        data: purify.sanitize(charge), // Sanitize charge data before sending
         success: false,
+        message: "Transaction failed",
       });
     }
   } catch (error) {
     res.send({
-      message: "Transaction failed",
-      data: purify.sanitize(error.message), // Sanitize error message to avoid XSS
+      message: "Error verifying deposit",
+      data: purify.sanitize(error.message),
       success: false,
     });
   }

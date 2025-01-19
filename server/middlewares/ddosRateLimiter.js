@@ -5,9 +5,11 @@ const LoginAttempt = require('../models/loginAttemptModel');
 
 // Create Redis client
 const redisClient = createClient({
+    username: 'default',
+    password: process.env.reddis_cloud_password,
     socket: {
-      host: 'localhost',  // Or Redis server address
-      port: 6379,         // Redis default port
+      host: process.env.reddis_cloud_host,  // Or Redis server address
+      port: process.env.reddis_cloud_port       // Redis default port
     }
   });
 

@@ -13,7 +13,7 @@ export const useSessionExpiryNotification = () => {
 
     const currentTime = Date.now();
     const timeLeft = expiryTime - currentTime;
-    const warningTime = 1 * 60 * 1000; // 5 minutes in milliseconds
+    const warningTime = 5 * 60 * 1000; // 5 minutes in milliseconds
 
     if (timeLeft > warningTime) {
       const timeoutId = setTimeout(() => {

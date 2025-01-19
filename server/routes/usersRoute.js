@@ -180,12 +180,12 @@ router.post(
       const token = jwt.sign(
         { userId: user._id, isAdmin: user.isAdmin },
         process.env.jwt_secret,
-        { expiresIn: "2m" }
+        { expiresIn: "1h" }
       );
 
       // Generate refresh token
       const refreshToken = jwt.sign(
-        { userId: user._id },
+        { userId: user._id, isAdmin: user.isAdmin },
         process.env.refresh_token_secret,
         { expiresIn: "7d" }
       );
@@ -230,7 +230,7 @@ router.post("/refresh-token", async (req, res) => {
     const newAccessToken = jwt.sign(
       { userId: decoded.userId, isAdmin: decoded.isAdmin },
       process.env.jwt_secret,
-      { expiresIn: "2m" }
+      { expiresIn: "1h" }
     );
 
     res.send({
@@ -248,7 +248,7 @@ router.post("/refresh-token", async (req, res) => {
 
 router.post('/logout', (req, res) => {
   const refreshToken = req.cookies.refreshToken;
-  
+
   if (refreshToken) {
     res.clearCookie('refreshToken', { path: '/' }); // Clear the cookie
   }
@@ -260,11 +260,9 @@ router.post('/logout', (req, res) => {
 router.post("/get-user-info", authenticationMiddleware, async (req, res) => {
   try {
 
-    const user = await User.findById(req.body.userId);
+    const user = await User.findById(req.body.userId).select("-password"); // Exclude password field
 
     if (user) {
-      user.password = ""; //The password should not be accessed by front end
-
       res.send({
         message: "User info fetched successfully",
         data: user,

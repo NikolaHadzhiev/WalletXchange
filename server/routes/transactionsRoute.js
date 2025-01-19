@@ -171,8 +171,8 @@ router.post(
         $or: [{ sender: req.body.userId }, { receiver: req.body.userId }],
       })
         .sort({ createdAt: -1 })
-        .populate("sender")
-        .populate("receiver");
+        .populate("sender", "-password")
+        .populate("receiver", "-password");
 
       const transactionIds = transactions.map(t => t._id);
 

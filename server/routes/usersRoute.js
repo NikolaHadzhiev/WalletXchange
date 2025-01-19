@@ -291,7 +291,7 @@ router.post("/get-user-info", authenticationMiddleware, async (req, res) => {
 router.get("/get-all-users", authenticationMiddleware, authorizationMiddleware, async (req, res) => {
   try {
 
-    const users = await User.find();
+    const users = await User.find().select("-password");
 
     res.send({
       message: "Users fetched successfully",

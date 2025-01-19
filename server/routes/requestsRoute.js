@@ -18,8 +18,8 @@ router.post("/get-all-requests-by-user", authenticationMiddleware, async (req, r
     const requests = await Request.find({
       $or: [{ sender: req.body.userId }, { receiver: req.body.userId }],
     })
-      .populate("sender")
-      .populate("receiver")
+      .populate("sender", "-password")
+      .populate("receiver", "-password")
       .sort({ createdAt: -1 });
 
       const requestIds = requests.map(r => r._id);

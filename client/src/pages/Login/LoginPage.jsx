@@ -59,7 +59,6 @@ function Login() {
           setLockoutTime(response.remainingTime);
           message.error(`Too many attempts. Try again in ${response.remainingTime}s.`);
         } else {
-          console.log(response);
           message.error(response.message);
         }
       }

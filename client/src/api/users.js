@@ -3,7 +3,7 @@ import { axiosInstance } from ".";
 // login user
 export const LoginUser = async (payload) => {
   try {
-    const { data } = await axiosInstance.post("/api/users/login", payload);
+    const { data } = await axiosInstance.post("/api/users/login", payload, { withCredentials: true });
     return data;
   } catch (error) {
 
@@ -24,6 +24,21 @@ export const RegisterUser = async (payload) => {
     if(!error.response) {
       return { message: "Server error" };
     }
+    return error.response.data;
+  }
+};
+
+// login user
+export const RefreshToken = async () => {
+  try {
+    const { data } = await axiosInstance.post("/api/users/refresh-token", null, { withCredentials: true });
+    return data;
+  } catch (error) {
+
+    if(!error.response) {
+      return { message: "Server error" };
+    }
+
     return error.response.data;
   }
 };

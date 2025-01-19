@@ -5,8 +5,9 @@ import './stylesheets/alignments.css'
 import './stylesheets/theme.css'
 import './stylesheets/layout.css'
 
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom';
 import { useSelector } from "react-redux";
+import { useSessionExpiryNotification } from "./hooks/useSessionExpiryNotificationHook";
 
 import Loader from "./components/Loader";
 import Login from './pages/Login/LoginPage';
@@ -24,10 +25,11 @@ import DDoSProtectionPage from './pages/DDOS/DDoSProtectionPage'
 function App() {
   const { loading } = useSelector((state) => state.loaders);
 
+  useSessionExpiryNotification();
+
   return (
     <>
       {loading && <Loader />}
-      <BrowserRouter>
         <Routes>
           <Route
             path="/login"
@@ -98,7 +100,6 @@ function App() {
             }
           />
         </Routes>
-      </BrowserRouter>
     </>
   );
 }

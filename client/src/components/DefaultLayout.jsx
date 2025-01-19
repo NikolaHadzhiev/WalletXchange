@@ -1,80 +1,67 @@
 import { useState } from "react";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
+import { axiosInstance } from "../api/index";
 
 function DefaultLayout({ children }) {
   const [collapsed, setCollapsed] = useState(false);
   const { user } = useSelector((state) => state.users);
   const navigate = useNavigate();
 
-  const userMenu = [
-    {
-      title: "Home",
-      icon: <i className="ri-home-7-line"></i>,
-      onClick: () => navigate("/"),
-      path: "/",
-    },
-    {
-      title: "Transactions",
-      icon: <i className="ri-bank-line"></i>,
-      onClick: () => navigate("/transactions"),
-      path: "/transactions",
-    },
-    {
-      title: "Requests",
-      icon: <i className="ri-hand-heart-line"></i>,
-      onClick: () => navigate("/requests"),
-      path: "/requests",
-    },
-    {
+  const generateMenu = (isAdmin) => {
+    const commonMenuItems = [
+      {
+        title: "Home",
+        icon: <i className="ri-home-7-line"></i>,
+        onClick: () => navigate("/"),
+        path: "/",
+      },
+      {
+        title: "Transactions",
+        icon: <i className="ri-bank-line"></i>,
+        onClick: () => navigate("/transactions"),
+        path: "/transactions",
+      },
+      {
+        title: "Requests",
+        icon: <i className="ri-hand-heart-line"></i>,
+        onClick: () => navigate("/requests"),
+        path: "/requests",
+      },
+    ];
+  
+    const adminMenuItems = [
+      {
+        title: "Users",
+        icon: <i className="ri-user-settings-line"></i>,
+        onClick: () => navigate("/users"),
+        path: "/users",
+      },
+    ];
+  
+    const logoutMenuItem = {
       title: "Logout",
       icon: <i className="ri-logout-box-line"></i>,
-      onClick: () => {
-        localStorage.removeItem("token");
-        navigate("/login");
+      onClick: async () => {
+        try {
+          const response = await axiosInstance.post("/api/users/logout", null, { withCredentials: true });
+          if (response?.data?.success) {
+            localStorage.removeItem("token");
+            navigate("/login");
+          }
+        } catch (logoutError) {
+          console.error("Logout failed:", logoutError); // Handle logout failure
+        }
       },
       path: "/logout",
-    },
-  ];
-
-  const adminMenu = [
-    {
-      title: "Home",
-      icon: <i className="ri-home-7-line"></i>,
-      onClick: () => navigate("/"),
-      path: "/",
-    },
-    {
-      title: "Users",
-      icon: <i className="ri-user-settings-line"></i>,
-      onClick: () => navigate("/users"),
-      path: "/users",
-    },
-    {
-      title: "Transactions",
-      icon: <i className="ri-bank-line"></i>,
-      onClick: () => navigate("/transactions"),
-      path: "/transactions",
-    },
-    {
-      title: "Requests",
-      icon: <i className="ri-hand-heart-line"></i>,
-      onClick: () => navigate("/requests"),
-      path: "/requests",
-    },
-    {
-      title: "Logout",
-      icon: <i className="ri-logout-box-line"></i>,
-      onClick: () => {
-        localStorage.removeItem("token");
-        navigate("/login");
-      },
-      path: "/logout",
-    },
-  ];
-
-  const menuToRender = user?.isAdmin ? adminMenu : userMenu;
-
+    };
+  
+    // Combine common menu items, admin-specific items, and the logout item
+    return [...commonMenuItems, ...(isAdmin ? adminMenuItems : []), logoutMenuItem];
+  };
+  
+  const menuToRender = generateMenu(user?.isAdmin);
+  
   return (
     <div className="layout">
       <div className="sidebar">

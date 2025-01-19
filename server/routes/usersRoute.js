@@ -176,11 +176,27 @@ router.post(
         });
       }
 
+      // Generate access token
       const token = jwt.sign(
         { userId: user._id, isAdmin: user.isAdmin },
         process.env.jwt_secret,
-        { expiresIn: "1m" }
+        { expiresIn: "2m" }
       );
+
+      // Generate refresh token
+      const refreshToken = jwt.sign(
+        { userId: user._id },
+        process.env.refresh_token_secret,
+        { expiresIn: "7d" }
+      );
+
+      // Save the refresh token in a secure, HTTP-only cookie
+      res.cookie("refreshToken", refreshToken, {
+        httpOnly: true,
+        secure: false, // Ensure it's secure in production
+        sameSite: "Lax",
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      });
 
       res.send({
         message: "User logged in successfully.",
@@ -195,6 +211,50 @@ router.post(
     }
   }
 );
+
+router.post("/refresh-token", async (req, res) => {
+  try {
+    const refreshToken = req.cookies.refreshToken; // Get token from cookies
+
+    if (!refreshToken) {
+      return res.status(403).send({
+        success: false,
+        message: "Refresh token not found.",
+      });
+    }
+
+    // Verify the refresh token
+    const decoded = jwt.verify(refreshToken, process.env.refresh_token_secret);
+
+    // Generate a new access token
+    const newAccessToken = jwt.sign(
+      { userId: decoded.userId, isAdmin: decoded.isAdmin },
+      process.env.jwt_secret,
+      { expiresIn: "2m" }
+    );
+
+    res.send({
+      message: "Session refreshed successfully.",
+      data: newAccessToken,
+      success: true,
+    });
+  } catch (error) {
+    res.status(403).send({
+      success: false,
+      message: "Invalid or expired session.",
+    });
+  }
+});
+
+router.post('/logout', (req, res) => {
+  const refreshToken = req.cookies.refreshToken;
+  
+  if (refreshToken) {
+    res.clearCookie('refreshToken', { path: '/' }); // Clear the cookie
+  }
+
+  res.send({ success: true, message: 'Logged out successfully' });
+});
 
 // get user info
 router.post("/get-user-info", authenticationMiddleware, async (req, res) => {

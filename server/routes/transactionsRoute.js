@@ -94,7 +94,6 @@ router.post("/transfer-money", authenticationMiddleware, async (req, res) => {
       success: true,
     });
   } catch (error) {
-    console.log(error);
     res.send({
       message: "Transaction failed",
       data: error.message,

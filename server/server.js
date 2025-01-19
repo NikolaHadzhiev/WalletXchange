@@ -6,10 +6,12 @@ const cors = require('cors');
 const ddosProtection = require("./middlewares/ddosRateLimiter");
 
 const app = express();
+const cookieParser = require('cookie-parser');
 
 // Allow requests from localhost:3000
 app.use(cors({
-  origin: 'http://localhost:3000'
+  origin: 'http://localhost:3000',
+  credentials: true
 }));
 
 // Use Helmet with custom settings
@@ -34,6 +36,7 @@ app.use(helmet({
 }));
 
 app.use(express.json());
+app.use(cookieParser());
 
 const dbConfig = require('./config/dbConfig');
 const userRoute = require('./routes/usersRoute');
@@ -42,7 +45,6 @@ const requestsRoute = require("./routes/requestsRoute");
 const ddosRoute = require("./routes/ddosRoute");
 
 const PORT = process.env.PORT || 5000;
-
 
 app.use("/api", ddosRoute);
 app.use("/api/", ddosProtection);

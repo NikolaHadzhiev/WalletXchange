@@ -8,6 +8,14 @@ const ddosProtection = require("./middlewares/ddosRateLimiter");
 const app = express();
 const cookieParser = require('cookie-parser');
 
+// Allow requests from localhost:3000
+app.use(cors({
+  origin: ['http://localhost:3000', process.env.cors_url],
+  methods: ["GET", "POST", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-CSRF-Token"],
+  credentials: true
+}));
+
 // Use Helmet with custom settings
 app.use(
   helmet({
@@ -17,7 +25,7 @@ app.use(
         defaultSrc: ["'self'"], // Only allow resources from the same origin
         scriptSrc: ["'self'"], // Only allow scripts from the same origin
         objectSrc: ["'none'"], // Prevent all plugins (e.g., Flash, Java applets)
-        connectSrc: ["'self'", process.env.cors_url], // Allow API connections from walletxchange-wallet.vercel.app
+        connectSrc: ["'self'", "https://walletxchange-wallet.vercel.app"], // Allow API connections from walletxchange-wallet.vercel.app
       },
     },
 
@@ -31,14 +39,6 @@ app.use(
     },
   })
 );
-
-// Allow requests from localhost:3000
-app.use(cors({
-  origin: ['http://localhost:3000', process.env.cors_url],
-  methods: ["GET", "POST", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-  credentials: true
-}));
 
 app.use(express.json());
 app.use(cookieParser());

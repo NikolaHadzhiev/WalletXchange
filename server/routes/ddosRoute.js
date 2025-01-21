@@ -3,6 +3,8 @@ const LoginAttempt = require("../models/loginAttemptModel"); // Import loginAtte
 
 // Check if the IP is blocked or rate-limited
 router.get("/ddos-check", async (req, res) => {
+  res.json({ message: "CORS is configured!" });
+  
   try {
     // Find the login attempt record for the current IP address
     const loginAttempt = await LoginAttempt.findOne({ identifier: req.ip });

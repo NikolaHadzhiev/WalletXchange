@@ -10,35 +10,35 @@ const cookieParser = require('cookie-parser');
 
 // Allow requests from localhost:3000
 app.use(cors({
-  origin: ['http://localhost:3000', process.env.cors_url],
+  origin: '*',
   methods: ["GET", "POST", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization", "X-CSRF-Token"],
   credentials: true
 }));
 
 // Use Helmet with custom settings
-app.use(
-  helmet({
-    // Content Security Policy (CSP)
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"], // Only allow resources from the same origin
-        scriptSrc: ["'self'"], // Only allow scripts from the same origin
-        objectSrc: ["'none'"], // Prevent all plugins (e.g., Flash, Java applets)
-        connectSrc: ["'self'", "https://walletxchange-wallet.vercel.app"], // Allow API connections from walletxchange-wallet.vercel.app
-      },
-    },
+// app.use(
+//   helmet({
+//     // Content Security Policy (CSP)
+//     contentSecurityPolicy: {
+//       directives: {
+//         defaultSrc: ["'self'"], // Only allow resources from the same origin
+//         scriptSrc: ["'self'"], // Only allow scripts from the same origin
+//         objectSrc: ["'none'"], // Prevent all plugins (e.g., Flash, Java applets)
+//         connectSrc: ["'self'", "*"], // Allow API connections from walletxchange-wallet.vercel.app
+//       },
+//     },
 
-    // Referrer-Policy Header
-    referrerPolicy: { policy: "no-referrer" }, // No referrer info sent with requests
+//     // Referrer-Policy Header
+//     referrerPolicy: { policy: "no-referrer" }, // No referrer info sent with requests
 
-    // Strict-Transport-Security (HSTS)
-    strictTransportSecurity: {
-      maxAge: 31536000, // 1 year in seconds
-      includeSubDomains: true, // Apply to all subdomains
-    },
-  })
-);
+//     // Strict-Transport-Security (HSTS)
+//     strictTransportSecurity: {
+//       maxAge: 31536000, // 1 year in seconds
+//       includeSubDomains: true, // Apply to all subdomains
+//     },
+//   })
+// );
 
 app.use(express.json());
 app.use(cookieParser());
@@ -60,3 +60,5 @@ app.use("/api/requests", requestsRoute);
 app.listen(PORT, () => {
     console.log(`Server started on port ${PORT}`);
 });
+
+module.exports = app;

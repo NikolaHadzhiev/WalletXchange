@@ -3,7 +3,7 @@ require('dotenv').config();
 const helmet = require('helmet');
 const express = require("express");
 const cors = require('cors');
-const ddosProtection = require("./middlewares/ddosRateLimiter");
+const ddosProtection = require("../middlewares/ddosRateLimiter");
 
 const app = express();
 const cookieParser = require('cookie-parser');
@@ -43,11 +43,11 @@ app.use(
 app.use(express.json());
 app.use(cookieParser());
 
-const dbConfig = require('./config/dbConfig');
-const userRoute = require('./routes/usersRoute');
-const transactionsRoute = require("./routes/transactionsRoute");
-const requestsRoute = require("./routes/requestsRoute");
-const ddosRoute = require("./routes/ddosRoute");
+const dbConfig = require('../config/dbConfig');
+const userRoute = require('../routes/usersRoute');
+const transactionsRoute = require("../routes/transactionsRoute");
+const requestsRoute = require("../routes/requestsRoute");
+const ddosRoute = require("../routes/ddosRoute");
 
 const PORT = process.env.PORT || 5000;
 

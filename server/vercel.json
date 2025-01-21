@@ -1,16 +1,31 @@
 {
-    "version": 2,
-    "builds": [
-        {"src": "server.js", "use": "@vercel/node"}
-    ],
-    "routes": [
-        {
-          "src": "/(.*)",
-          "dest": "/",
-          "methods": ["GET", "POST"],
-          "headers": {
-            "Access-Control-Allow-Origin": "*"
-          }
-        }
-    ]
+  "version": 2,
+  "builds": [
+    {
+      "src": "*.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+       "src": "/(.*)",
+       "dest": "/",
+        "methods": ["GET","POST", "OPTIONS"],
+        "headers": {
+        "Access-Control-Allow-Origin": "https://walletxchange-wallet.vercel.app",
+        "Access-Control-Allow-Credentials": "true",
+        "Access-Control-Allow-Headers": "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+        "Strict-Transport-Security": "max-age=31536000; includeSubDomains; preload",
+        "Content-Security-Policy": "default-src 'self'; script-src 'self'; object-src 'none';",
+        "X-Content-Type-Options": "nosniff",
+        "X-Frame-Options": "DENY",
+        "Referrer-Policy": "no-referrer",
+        "Permissions-Policy": "geolocation=(), microphone=(), camera=(), payment=()",
+        "Cross-Origin-Embedder-Policy": "require-corp",
+        "Cross-Origin-Opener-Policy": "same-origin",
+        "Cross-Origin-Resource-Policy": "same-origin"
+      }
+   }
+ ]
 }

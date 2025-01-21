@@ -10,7 +10,7 @@ const cookieParser = require('cookie-parser');
 
 // Allow requests from localhost:3000
 app.use(cors({
-  origin: process.env.cors_url,
+  origin: [process.env.cors_url],
   methods: ["POST", "GET"],
   credentials: true
 }));

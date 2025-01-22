@@ -4,26 +4,25 @@ FROM node:18-alpine
 # Set working directory
 WORKDIR /app
 
-# Copy package files and install dependencies
+# Copy server package files and install dependencies
 COPY ./server/package*.json ./server/
-COPY ./client/package*.json ./client/
-
-# Install dependencies for server and client
 RUN npm install --prefix server
+
+# Copy client package files and install dependencies
+COPY ./client/package*.json ./client/
 RUN npm install --prefix client
 
-# Install 'serve' globally
 RUN npm install -g serve
 
-# Copy the rest of the files
-COPY ./server ./server
-COPY ./client ./client
-
 # Build the client
+COPY ./client ./client
 RUN npm run build --prefix client
 
-# Expose ports
-EXPOSE 8080
+# Copy server source files
+COPY ./server ./server
+
+# Expose ports for server and client
+EXPOSE 3000 8080
 
 # Command to run both server and client
-CMD ["sh", "-c", "node server/server.js & serve -s client/dist -l 8080"]
+CMD ["sh", "-c", "node server/server.js & serve -s client/dist -l 3000"]

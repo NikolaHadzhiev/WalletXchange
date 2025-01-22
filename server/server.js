@@ -1,41 +1,42 @@
-require('dotenv').config();
+require('dotenv').config({
+  path: process.env.NODE_ENV === 'production' ? '.env.production' : '.env.development',
+});
+
+if (process.env.NODE_ENV === 'production') {
+  console.log('Running in production mode');
+} else {
+  console.log('Running in development mode');
+}
 
 const helmet = require('helmet');
 const express = require("express");
 const cors = require('cors');
 const ddosProtection = require("./middlewares/ddosRateLimiter");
+const cookieParser = require('cookie-parser');
+const path = require("path");
 
 const app = express();
-const cookieParser = require('cookie-parser');
 
-// Allow requests from localhost:3000
 app.use(cors({
   origin: process.env.cors_url,
-  ethods: ["GET", "POST", "DELETE", "OPTIONS"],
-  credentials: true
+  methods: ["GET", "POST", "DELETE", "OPTIONS"],
+  credentials: true,
 }));
 
-// Use Helmet with custom settings
 app.use(helmet({
-  // Content Security Policy (CSP)
   contentSecurityPolicy: {
     directives: {
-      defaultSrc: ["'self'"], // Only allow resources from the same origin (self)
-      scriptSrc: ["'self'"], // Only allow scripts from the same origin (self)
-      objectSrc: ["'none'"], // Prevent all plugins (e.g., Flash, Java applets)
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      objectSrc: ["'none'"],
     },
   },
-  // Referrer-Policy Header: Controls the amount of information sent with HTTP requests
-  referrerPolicy: { policy: "no-referrer" }, 
-  // "no-referrer" means no referrer information will be sent with requests
-
-  // Strict-Transport-Security (HSTS)
+  referrerPolicy: { policy: "no-referrer" },
   strictTransportSecurity: {
-    maxAge: 31536000, // 1 year in seconds (duration to enforce HTTPS)
-    includeSubDomains: true, // Apply this policy to all subdomains
+    maxAge: 31536000,
+    includeSubDomains: true,
   },
 }));
-
 
 app.use(express.json());
 app.use(cookieParser());
@@ -48,6 +49,12 @@ const ddosRoute = require("./routes/ddosRoute");
 
 const PORT = process.env.PORT || 5000;
 
+app.use(express.static(path.join(__dirname, "public")));
+
+app.get("*", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
 app.use("/api", ddosRoute);
 app.use("/api/", ddosProtection);
 app.use('/api/users', userRoute);
@@ -57,5 +64,3 @@ app.use("/api/requests", requestsRoute);
 app.listen(PORT, () => {
     console.log(`Server started on port ${PORT}`);
 });
-
-export default app

@@ -3,6 +3,11 @@ const { RedisStore } = require('rate-limit-redis');
 const { createClient } = require('redis');
 const LoginAttempt = require('../models/loginAttemptModel');
 
+const MAX_REQUESTS = 100;
+const DDOS_WINDOW = 60 * 1000; // 1 minute window
+const CLEAR_REQUESTS_STORAGE_AFTER = 60 * 15;
+const BLOCK_DURATION = 1 * 60 * 1000; // Block duration in milliseconds (1 minute)
+
 // Create Redis client
 const redisClient = createClient({
     username: 'default',
@@ -19,16 +24,14 @@ const redisClient = createClient({
     console.error('Redis connection error:', err);
   });
 
-const BLOCK_DURATION = 1 * 60 * 1000; // Block duration in milliseconds (1 minute)
-
 // Rate limiter using Redis to store request counts
 const limiter = rateLimit({
   store: new RedisStore({
     sendCommand: (...args) => redisClient.sendCommand(args),
-    expiry: 60 * 15,  // Store request counts for 15 minutes
+    expiry: CLEAR_REQUESTS_STORAGE_AFTER,  // Store request counts for 15 minutes
   }),
-  windowMs: 60 * 1000,  // 1 minute window
-  max: 100,              // Limit each IP to 100 requests per minute
+  windowMs: DDOS_WINDOW,  // 1 minute window
+  max: MAX_REQUESTS,              // Limit each IP to 100 requests per minute
   message: 'Too many requests from this IP, please try again later.',
   handler: async (req, res, next, options) => {
     const identifier = req.ip; // Or use email, depending on your use case

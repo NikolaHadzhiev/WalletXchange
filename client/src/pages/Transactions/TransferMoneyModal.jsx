@@ -18,7 +18,8 @@ export const TransferMoneyModal = ({
   const [isVerified, setIsVerified] = useState("");
   const [isReceiverValid, setIsReceiverValid] = useState(false); // State to track receiver validity
   const { user } = useSelector((state) => state.users);
-
+  const maxBalance = Number(user?.balance) > 0 ? Number(user.balance) : 1;
+  
   // Validate receiver input
   const handleReceiverChange = (e) => {
     const receiverAccount = e.target.value;
@@ -155,7 +156,7 @@ export const TransferMoneyModal = ({
         >
           <InputNumber
             min={1}
-            max={Number(user.balance)}
+            max={maxBalance}
             step={0.01}
             controls={false}
           />

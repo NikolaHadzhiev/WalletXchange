@@ -162,22 +162,22 @@ function Users() {
                 </button>
               )}
 
-              {record.requestDelete && (
-                <div className="flex gap-1 justify-center">
-                  <button
-                    className="primary-outlined-btn red"
-                    onClick={() => deleteUser(record)}
-                  >
-                    Delete
-                  </button>
+              <div className="flex gap-1 justify-center">
+                <button
+                  className="primary-outlined-btn red"
+                  onClick={() => deleteUser(record)}
+                >
+                  Delete
+                </button>
+                {record.requestDelete && (
                   <button
                     className="primary-outlined-btn"
                     onClick={() => cancelDelete(record)}
                   >
                     Cancel deletion
                   </button>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           )
         );

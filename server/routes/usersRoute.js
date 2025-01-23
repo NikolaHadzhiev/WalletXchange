@@ -193,7 +193,7 @@ router.post(
       // Save the refresh token in a secure, HTTP-only cookie
       res.cookie("refreshToken", refreshToken, {
         httpOnly: true,
-        secure: false, // Ensure it's secure in production
+        secure: process.env.NODE_ENV != 'production' ? false : true, // Ensure it's secure in production
         sameSite: "Lax",
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       });

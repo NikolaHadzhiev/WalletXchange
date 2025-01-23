@@ -1,5 +1,6 @@
 import axios from 'axios';
 import.meta.env.VITE_API_URL
+import { handleApiError } from "../utils/handleApiError";
 
 export const axiosInstance = axios.create({
     baseURL: import.meta.env.VITE_API_URL,
@@ -27,5 +28,8 @@ axiosInstance.interceptors.response.use(
         }
         return response
     },
-    (error) => Promise.reject(error)
+    (error) => {
+      handleApiError(error);
+      return Promise.reject(error)
+    }
   );

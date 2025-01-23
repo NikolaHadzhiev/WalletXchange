@@ -49,17 +49,22 @@ const ddosRoute = require("./routes/ddosRoute");
 
 const PORT = process.env.PORT || 5000;
 
-app.use(express.static(path.join(__dirname, "public")));
-
-app.get("*", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
-});
-
 app.use("/api", ddosRoute);
 app.use("/api/", ddosProtection);
 app.use('/api/users', userRoute);
 app.use("/api/transactions", transactionsRoute);
 app.use("/api/requests", requestsRoute);
+
+if (process.env.NODE_ENV === 'production') {
+  // Serve static files from the React app
+  const clientBuildPath = path.join(__dirname, "../client/dist");
+  app.use(express.static(clientBuildPath));
+
+  // Serve index.html for any other route not handled by API
+  app.get("*", (req, res) => {
+    res.sendFile(path.join(clientBuildPath, "index.html"));
+  });
+}
 
 app.listen(PORT, () => {
     console.log(`Server started on port ${PORT}`);

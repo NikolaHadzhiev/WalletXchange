@@ -22,8 +22,9 @@ function Register() {
       dispatch(HideLoading());
 
       if (response.success) {
-        message.success(response.message);
-        navigate("/login");
+        message.success(response.message, 1).then(() => {
+          navigate("/login");
+        });
       } else {
         message.error(response.message);
       }

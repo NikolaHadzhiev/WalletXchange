@@ -33,7 +33,7 @@ module.exports.authorizationMiddleware = function(req, res, next) {
            });
        }
 
-       const decoded = jwt.verify(token, process.env.JWT_SECRET);
+       const decoded = jwt.verify(token, process.env.jwt_secret);
        if (decoded.isAdmin) {
            next();
        } else {

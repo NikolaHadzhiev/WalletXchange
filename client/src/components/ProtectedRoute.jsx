@@ -32,13 +32,15 @@ function ProtectedRoute({ shouldBeAdmin = false, children }) {
       if (response.success) {
         dispatch(SetUser(response.data));
       } else {
-        message.error(response.message);
-        navigate("/login");
+        message.error(response.message, 1).then(() => {
+          navigate("/login");
+        });
       }
     } catch (error) {
       dispatch(HideLoading());
-      message.error(error.message);
-      navigate("/login");
+      message.error(error.message, 1).then(() => {
+        navigate("/login");
+      });
     }
   }, [dispatch, navigate]);
 

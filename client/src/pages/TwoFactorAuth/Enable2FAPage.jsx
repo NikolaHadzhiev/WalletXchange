@@ -18,9 +18,10 @@ function EnableTwoFactorAuth() {
       try {
         const response = await Check2FAStatus({ userId: user._id });
         if (response.isEnabled) {
-          message.error(response.message);
-          dispatch(ReloadUser(true));
-          navigate("/"); // Redirect to home page
+          message.error(response.message, 1).then(() => {
+            dispatch(ReloadUser(true));
+            navigate("/"); // Redirect to home page
+          });
         }
       } catch (error) {
         console.error("Error checking 2FA status:", error);

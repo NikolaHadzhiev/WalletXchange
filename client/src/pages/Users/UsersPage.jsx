@@ -30,6 +30,8 @@ function Users() {
             return { ...obj, key: index };
           })
         );
+
+        message.success(response.message);
       } else {
         message.error(response.message);
       }

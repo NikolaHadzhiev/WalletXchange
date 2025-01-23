@@ -45,12 +45,14 @@ function Login() {
 
       if (response.success) {
         if (response.twoFA) {
-          message.error(response.message);
-          navigate('/verify-2fa', { state: { userId: response.userId } });
+          message.error(response.message, 1).then(() => {
+            navigate('/verify-2fa', { state: { userId: response.userId } });
+          });
         } else {
-          message.success(response.message);
-          localStorage.setItem("token", response.data);
-          window.location.href = "/";
+          message.success(response.message, 1).then(() => {
+            localStorage.setItem("token", response.data);
+            window.location.href = "/";
+          });
         }
       } else {
         if (response.remainingTime) {

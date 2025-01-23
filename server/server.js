@@ -27,7 +27,7 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'"],
+      scriptSrc: ["'self'", "https://checkout.stripe.com"],
       objectSrc: ["'none'"],
     },
   },

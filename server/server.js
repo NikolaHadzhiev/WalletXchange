@@ -28,6 +28,7 @@ app.use(helmet({
     directives: {
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'", "https://checkout.stripe.com"],
+      frameSrc: ["'self'", "https://checkout.stripe.com"],
       objectSrc: ["'none'"],
     },
   },

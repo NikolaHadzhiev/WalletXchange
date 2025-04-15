@@ -247,7 +247,7 @@ router.post("/refresh-token", async (req, res) => {
 });
 
 router.post('/logout', (req, res) => {
-  const refreshToken = req.cookies.refreshToken;
+  const refreshToken = req?.cookies?.refreshToken;
 
   if (refreshToken) {
     res.clearCookie('refreshToken', { path: '/' }); // Clear the cookie
@@ -335,9 +335,17 @@ router.post("/update-user-verified-status", authenticationMiddleware, authorizat
 router.post("/request-delete", authenticationMiddleware, async (req, res) => {
   try {
 
-    await User.findByIdAndUpdate(req.body._id, {
+    const user = await User.findByIdAndUpdate(req.body._id, {
       requestDelete: req.body.requestDelete,
     });
+
+    if (!user) {
+      return res.send({
+        data: null,
+        message: "User not found",
+        success: false,
+      });
+    }
 
     res.send({
       data: null,
@@ -358,37 +366,39 @@ router.post("/request-delete", authenticationMiddleware, async (req, res) => {
 // delete user
 router.delete("/delete-user/:id", authenticationMiddleware, authorizationMiddleware, async (req, res) => {
   try {
-
     const userToDelete = await User.findById(req.params.id);
+
+    if (!userToDelete) {
+      return res.send({
+        data: null,
+        message: "User not found",
+        success: false,
+      });
+    }
 
     const requests = await Request.find({
       $or: [{ sender: userToDelete._id }, { receiver: userToDelete._id }],
-    })
+    });
 
     const transactions = await Transaction.find({
       $or: [{ sender: userToDelete._id }, { receiver: userToDelete._id }],
-    })
+    });
 
-    if (userToDelete) {
-
-      await DeletedUser.create({ deleteId: userToDelete._id, firstName: userToDelete.firstName, lastName: userToDelete.lastName, requests, transactions});
-      await User.findByIdAndDelete(req.params.id);
-
-      res.send({
-        data: null,
-        message: "User deleted successfully",
-        success: true,
-      });
-
-      return;
-    }
+    await DeletedUser.create({ 
+      deleteId: userToDelete._id, 
+      firstName: userToDelete.firstName, 
+      lastName: userToDelete.lastName, 
+      requests, 
+      transactions
+    });
+    
+    await User.findByIdAndDelete(req.params.id);
 
     res.send({
       data: null,
-      message: "User not found",
-      success: false,
+      message: "User deleted successfully",
+      success: true,
     });
-
   } 
   catch (error) {
     res.send({

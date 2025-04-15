@@ -17,11 +17,11 @@ router.get("/ddos-check", async (req, res) => {
     }
 
     // Check the failed attempt count
-    if (loginAttempt && loginAttempt.count >= 10) {
+    if (loginAttempt && loginAttempt.attempts >= 10) {
       return res.status(429).send({
         message: "Too many requests. Please wait and try again later.",
         success: false,
-        count: loginAttempt.count,
+        count: loginAttempt.attempts,
       });
     }
 

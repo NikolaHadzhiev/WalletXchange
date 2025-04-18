@@ -27,7 +27,8 @@ jobs:
       run: npm ci
     
     - name: Run Tests
-      run: npm test -- --runInBand  docker:
+      run: npm test -- --runInBand  
+  docker:
     needs: test
     runs-on: ubuntu-latest
     steps:

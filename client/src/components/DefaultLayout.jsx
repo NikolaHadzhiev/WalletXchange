@@ -7,7 +7,6 @@ function DefaultLayout({ children }) {
   const [collapsed, setCollapsed] = useState(false);
   const { user } = useSelector((state) => state.users);
   const navigate = useNavigate();
-
   const generateMenu = (isAdmin) => {
     const commonMenuItems = [
       {
@@ -21,6 +20,12 @@ function DefaultLayout({ children }) {
         icon: <i className="ri-bank-line"></i>,
         onClick: () => navigate("/transactions"),
         path: "/transactions",
+      },
+      {
+        title: "Reports",
+        icon: <i className="ri-pie-chart-line"></i>,
+        onClick: () => navigate("/reports"),
+        path: "/reports",
       },
       {
         title: "Requests",

@@ -21,6 +21,7 @@ import Users from './pages/Users/UsersPage'
 import VerifyTwoFactorAuth from './pages/TwoFactorAuth/Verify2FAPage'
 import EnableTwoFactorAuth from './pages/TwoFactorAuth/Enable2FAPage'
 import DDoSProtectionPage from './pages/DDOS/DDoSProtectionPage'
+import Reports from './pages/Reports/ReportsPage'
 
 function App() {
   const { loading } = useSelector((state) => state.loaders);
@@ -96,6 +97,14 @@ function App() {
             element={
               <ProtectedRoute shouldBeAdmin={true}>
                 <Users />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/reports"
+            element={
+              <ProtectedRoute>
+                <Reports />
               </ProtectedRoute>
             }
           />

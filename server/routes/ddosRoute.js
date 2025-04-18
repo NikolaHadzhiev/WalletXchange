@@ -31,7 +31,6 @@ router.get("/ddos-check", async (req, res) => {
       success: true,
     });
   } catch (error) {
-    console.error(error);
     res.status(500).send({
       message: "Server error",
       success: false,

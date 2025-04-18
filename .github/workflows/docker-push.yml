@@ -5,7 +5,9 @@ on:
   push:
     branches:
       - 'main'
-
+  pull_request:
+    branches:
+      - 'main'
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -29,15 +31,14 @@ jobs:
     - name: Run Tests
       run: npm test -- --runInBand  
   docker:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: test
     runs-on: ubuntu-latest
     steps:
-      - 
-        name: Set up Docker Buildx
+      - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
-      - 
-        name: Login to Docker Hub
+      - name: Login to Docker Hub
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -50,6 +51,7 @@ jobs:
           push: true
           tags: nikolahadzhiev/walletxchange:latest
   deploy:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: docker
     name: Deploy to Fly.io
     runs-on: ubuntu-latest
@@ -59,3 +61,4 @@ jobs:
       - run: flyctl deploy --remote-only
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+

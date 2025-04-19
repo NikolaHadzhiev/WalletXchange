@@ -513,7 +513,7 @@ function ReportsPage() {
             <Space>              
               <Select
                 placeholder="Select Month"
-                style={{ width: 120 }}
+                style={{ width: 150 }}
                 onChange={handleMonthChange}
                 onClear={handleClearMonth}                
                 value={selectedMonth}
@@ -531,7 +531,7 @@ function ReportsPage() {
             </Space>
             <span>OR</span>              
             <DatePicker.RangePicker
-              style={{ width: 250 }}
+              style={{ width: 280, height: 35 }}
               onChange={handleDateRangeChange}
               value={dateRange}
               disabled={selectedMonth !== null}
@@ -604,7 +604,7 @@ function ReportsPage() {
             options={yearOptions}
           />
         </div>
-        <ResponsiveContainer width="100%" height={300}>
+        <ResponsiveContainer width="100%" height={280}>
           <AreaChart
             data={monthlyData}
             margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
@@ -634,7 +634,8 @@ function ReportsPage() {
         </ResponsiveContainer>
       </Card>
       <Row gutter={16} className="mt-4">
-        <Col span={12}>          <Card title="Expense Categories">
+        <Col span={12}>          
+        <Card title="Expense Categories">
             <ResponsiveContainer width="100%" height={210}>
               <PieChart>
                 <Pie

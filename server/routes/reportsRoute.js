@@ -50,7 +50,8 @@ router.post("/get-transaction-summary", authenticationMiddleware, async (req, re
       receiver: userId,
       ...dateFilter
     });    
-      // Calculate totals
+    
+    // Calculate totals
     const totalIncome = receivedTransactions.reduce(
       (total, transaction) => total + transaction.amount,
       0

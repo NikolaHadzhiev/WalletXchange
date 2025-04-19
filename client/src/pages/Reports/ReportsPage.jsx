@@ -635,7 +635,7 @@ function ReportsPage() {
       </Card>
       <Row gutter={16} className="mt-4">
         <Col span={12}>          <Card title="Expense Categories">
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={210}>
               <PieChart>
                 <Pie
                   data={normalizeAndTransformCategoryData(categoryData.expenseCategories, summary.totalExpenses)}
@@ -657,8 +657,9 @@ function ReportsPage() {
             </ResponsiveContainer>
           </Card>
         </Col>
-        <Col span={12}>          <Card title="Income Categories">
-            <ResponsiveContainer width="100%" height={300}>
+        <Col span={12}>          
+        <Card title="Income Categories">
+            <ResponsiveContainer width="100%" height={210}>
               <PieChart>
                 <Pie
                   data={normalizeAndTransformCategoryData(categoryData.incomeCategories, summary.totalIncome)}

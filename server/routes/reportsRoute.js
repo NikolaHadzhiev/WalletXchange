@@ -280,6 +280,8 @@ router.post("/get-category-summary", authenticationMiddleware, async (req, res) 
         category = "Gifts";
       } else if (reference.includes("refund") || reference.includes("return")) {
         category = "Refunds";
+      } else if (reference.includes("deposit")) {
+        category = "Deposit";
       }
       
       incomeCategories[category] = (incomeCategories[category] || 0) + transaction.amount;

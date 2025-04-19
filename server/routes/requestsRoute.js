@@ -7,9 +7,40 @@ const Transaction = require("../models/transactionModel");
 const { body, validationResult } = require("express-validator");
 const { JSDOM } = require("jsdom");
 const DOMPurify = require("dompurify");
+const nodemailer = require("nodemailer");
 
 const window = new JSDOM("").window;
 const purify = DOMPurify(window);
+
+// Create reusable email transporter object
+const createTransporter = () => {
+  return nodemailer.createTransport({
+    host: process.env.email_host,
+    port: process.env.email_port,
+    secure: true,
+    auth: {
+      user: process.env.email_username,
+      pass: process.env.email_password,
+    },
+  });
+};
+
+// Helper function to send money request notification emails
+const sendRequestEmail = async (email, subject, message) => {
+  try {
+    const transporter = createTransporter();
+    await transporter.sendMail({
+      from: process.env.email_username,
+      to: email,
+      subject: subject,
+      text: message,
+    });
+    return true;
+  } catch (error) {
+    console.error("Email sending failed:", error);
+    return false;
+  }
+};
 
 // get all requests for a user
 router.post("/get-all-requests-by-user", authenticationMiddleware, async (req, res) => {
@@ -192,6 +223,105 @@ router.post(
       await Request.findByIdAndUpdate(sanitizedRequestId, {
         status: sanitizedStatus,
       });
+
+      // Get sender and receiver details for email notifications
+      const senderUser = await User.findById(sanitizedSenderId);
+      const receiverUser = await User.findById(sanitizedReceiverId);
+
+      // Send email notifications based on the status
+      if (sanitizedStatus === "accepted") {
+        // Notify the sender that the request was accepted
+        if (senderUser && senderUser.email) {
+          await sendRequestEmail(
+            senderUser.email,
+            "Money Request Accepted - WalletXChange",
+            `Dear ${senderUser.firstName},
+
+              Good news! Your money request has been accepted.
+
+              Request details:
+              - Requested from: ${receiverUser ? `${receiverUser.firstName} ${receiverUser.lastName}` : 'User'}
+              - Reference: ${sanitizedDescription}
+              - Date: ${new Date().toLocaleString()}
+
+              The amount has been added to your balance.
+
+              Thank you for using WalletXChange!
+
+              Best regards,
+              The WalletXChange Team`
+          );
+        }
+
+        // Notify the receiver that they accepted the request
+        if (receiverUser && receiverUser.email) {
+          await sendRequestEmail(
+            receiverUser.email,
+            "Money Request Payment Confirmation - WalletXChange",
+            `Dear ${receiverUser.firstName},
+
+              This is a confirmation that you have accepted a money request.
+
+              Request details:
+              - Requested by: ${senderUser ? `${senderUser.firstName} ${senderUser.lastName}` : 'User'}
+              - Reference: ${sanitizedDescription}
+              - Date: ${new Date().toLocaleString()}
+
+              The amount has been deducted from your balance.
+
+              Thank you for using WalletXChange!
+
+              Best regards,
+              The WalletXChange Team`
+          );
+        }
+      } else if (sanitizedStatus === "rejected") {
+        // Notify the sender that the request was rejected
+        if (senderUser && senderUser.email) {
+          await sendRequestEmail(
+            senderUser.email,
+            "Money Request Rejected - WalletXChange",
+            `Dear ${senderUser.firstName},
+
+              We regret to inform you that your money request has been rejected.
+
+              Request details:
+              - Requested from: ${receiverUser ? `${receiverUser.firstName} ${receiverUser.lastName}` : 'User'}
+              - Reference: ${sanitizedDescription}
+              - Date: ${new Date().toLocaleString()}
+
+              If you have any questions, please contact the person you sent the request to.
+
+              Thank you for using WalletXChange!
+
+              Best regards,
+              The WalletXChange Team`
+          );
+        }
+
+        // Notify the receiver that they rejected the request
+        if (receiverUser && receiverUser.email) {
+          await sendRequestEmail(
+            receiverUser.email,
+            "Money Request Rejected Confirmation - WalletXChange",
+            `Dear ${receiverUser.firstName},
+
+              This is a confirmation that you have rejected a money request.
+
+              Request details:
+              - Requested by: ${senderUser ? `${senderUser.firstName} ${senderUser.lastName}` : 'User'}
+              - Reference: ${sanitizedDescription}
+              - Date: ${new Date().toLocaleString()}
+
+              No money has been transferred from your account.
+
+              Thank you for using WalletXChange!
+
+              Best regards,
+              The WalletXChange Team`
+          );
+        }
+      }
 
       res.send({
         data: null,

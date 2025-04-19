@@ -424,6 +424,25 @@ function ReportsPage() {
     }));
   };
 
+  // Normalize category data to match summary totals
+  const normalizeAndTransformCategoryData = (categoryObj, totalAmount) => {
+    const transformedData = transformCategoryData(categoryObj);
+    if (!transformedData || transformedData.length === 0) return transformedData;
+    
+    // Calculate the sum of all category values
+    const sum = transformedData.reduce((acc, item) => acc + item.value, 0);
+    
+    // If sum differs from totalAmount, normalize each value
+    if (sum !== totalAmount && sum > 0) {
+      return transformedData.map(item => ({
+        name: item.name,
+        value: (item.value / sum) * totalAmount
+      }));
+    }
+    
+    return transformedData;
+  };
+
   // Available years for dropdown selection
   const yearOptions = Array.from({ length: 5 }, (_, i) => {
     const year = new Date().getFullYear() - 2 + i;
@@ -615,12 +634,11 @@ function ReportsPage() {
         </ResponsiveContainer>
       </Card>
       <Row gutter={16} className="mt-4">
-        <Col span={12}>
-          <Card title="Expense Categories">
+        <Col span={12}>          <Card title="Expense Categories">
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
-                  data={transformCategoryData(categoryData.expenseCategories)}
+                  data={normalizeAndTransformCategoryData(categoryData.expenseCategories, summary.totalExpenses)}
                   cx="50%"
                   cy="50%"
                   labelLine={false}
@@ -629,7 +647,7 @@ function ReportsPage() {
                   dataKey="value"
                   label={({name, percent}) => `${name}: ${(percent * 100).toFixed(0)}%`}
                 >
-                  {transformCategoryData(categoryData.expenseCategories).map((entry, index) => (
+                  {normalizeAndTransformCategoryData(categoryData.expenseCategories, summary.totalExpenses).map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
@@ -639,12 +657,11 @@ function ReportsPage() {
             </ResponsiveContainer>
           </Card>
         </Col>
-        <Col span={12}>
-          <Card title="Income Categories">
+        <Col span={12}>          <Card title="Income Categories">
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
-                  data={transformCategoryData(categoryData.incomeCategories)}
+                  data={normalizeAndTransformCategoryData(categoryData.incomeCategories, summary.totalIncome)}
                   cx="50%"
                   cy="50%"
                   labelLine={false}
@@ -653,7 +670,7 @@ function ReportsPage() {
                   dataKey="value"
                   label={({name, percent}) => `${name}: ${(percent * 100).toFixed(0)}%`}
                 >
-                  {transformCategoryData(categoryData.incomeCategories).map((entry, index) => (
+                  {normalizeAndTransformCategoryData(categoryData.incomeCategories, summary.totalIncome).map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>

@@ -119,8 +119,7 @@ router.post("/get-monthly-data", authenticationMiddleware, async (req, res) => {
       startDate = new Date(targetYear, 0, 1); // January 1
       endDate = new Date(targetYear, 11, 31); // December 31
     }
-    
-    // Aggregate income by month
+      // Aggregate income by month (excluding deposits)
     const monthlyIncome = await Transaction.aggregate([
       {
         $match: {
@@ -136,7 +135,25 @@ router.post("/get-monthly-data", authenticationMiddleware, async (req, res) => {
         }
       },
       { $sort: { _id: 1 } }
-    ]);    
+    ]);
+    
+    // Aggregate deposits by month (self-transfers)
+    const monthlyDeposits = await Transaction.aggregate([
+      {
+        $match: {
+          receiver: new mongoose.Types.ObjectId(userId),
+          sender: new mongoose.Types.ObjectId(userId), // Only include self-transfers (deposits)
+          createdAt: { $gte: startDate, $lte: endDate }
+        }
+      },
+      {
+        $group: {
+          _id: { $month: "$createdAt" },
+          total: { $sum: "$amount" }
+        }
+      },
+      { $sort: { _id: 1 } }
+    ]);
     
     // Aggregate expenses by month
     const monthlyExpenses = await Transaction.aggregate([
@@ -154,17 +171,23 @@ router.post("/get-monthly-data", authenticationMiddleware, async (req, res) => {
         }
       },
       { $sort: { _id: 1 } }
-    ]);
-
+    ]);    
+    
     // Format the data for all 12 months
     const formattedData = Array.from({ length: 12 }, (_, i) => {
       const month = i + 1;
       const incomeEntry = monthlyIncome.find(item => item._id === month);
+      const depositEntry = monthlyDeposits.find(item => item._id === month);
       const expenseEntry = monthlyExpenses.find(item => item._id === month);
+      
+      // Calculate total income by adding regular income and deposits
+      const regularIncome = incomeEntry ? incomeEntry.total : 0;
+      const depositIncome = depositEntry ? depositEntry.total : 0;
+      const totalIncome = regularIncome + depositIncome;
       
       return {
         month,
-        income: incomeEntry ? incomeEntry.total : 0,
+        income: totalIncome,
         expenses: expenseEntry ? expenseEntry.total : 0
       };
     });

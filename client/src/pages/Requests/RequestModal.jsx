@@ -56,7 +56,7 @@ function RequestModal({
 
       // Sanitizing inputs before sending them
       const sanitizedReceiver = DOMPurify.sanitize(form.getFieldValue("receiver").trim()); // Remove any unwanted spaces
-      const sanitizedDescription = DOMPurify.sanitize(values.reference || ""); // Sanitize description to avoid XSS
+      const sanitizedDescription = DOMPurify.sanitize(values.reference || "No description"); // Sanitize description to avoid XSS
       const sanitizedAmount = Math.abs(values.amount); // Ensure amount is a positive number
 
       const payload = {
@@ -76,7 +76,7 @@ function RequestModal({
         message.success(response.message);
       } else {
         setShowNewRequestModal(false);
-        message.error(response.message);
+        message.error(response.message || response.error);
       }
 
       dispatch(HideLoading());

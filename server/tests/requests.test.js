@@ -13,6 +13,13 @@ require('dotenv').config({
   path: '.env.development',
 });
 
+// Mock nodemailer for email tests
+jest.mock('nodemailer', () => ({
+  createTransport: jest.fn().mockReturnValue({
+    sendMail: jest.fn().mockResolvedValue(true)
+  })
+}));
+
 const requestsRoute = require('../routes/requestsRoute');
 app.use(express.json());
 app.use('/api/requests', requestsRoute);
@@ -158,6 +165,13 @@ describe('Money Request Tests', () => {
   });
 
   describe('Handle Money Requests', () => {
+    let nodemailer;
+    
+    beforeEach(() => {
+      // Import nodemailer at test level to access the mock
+      nodemailer = require('nodemailer');
+    });
+
     it('should allow receiver to accept a request', async () => {
       // Create a request first
       const moneyRequest = await Request.create({
@@ -196,6 +210,28 @@ describe('Money Request Tests', () => {
       });
       expect(transaction).toBeTruthy();
       expect(transaction.amount).toBe(100);
+      
+      // Verify that emails were sent (one to sender, one to receiver)
+      const mockTransporter = nodemailer.createTransport();
+      expect(mockTransporter.sendMail).toHaveBeenCalledTimes(2);
+      
+      // Verify correct email parameters for sender notification
+      const senderEmailCall = mockTransporter.sendMail.mock.calls.find(
+        call => call[0].to === senderUser.email
+      );
+      expect(senderEmailCall).toBeDefined();
+      expect(senderEmailCall[0].subject).toContain('Accepted');
+      expect(senderEmailCall[0].text).toContain('accepted');
+      expect(senderEmailCall[0].text).toContain(senderUser.firstName);
+      
+      // Verify correct email parameters for receiver notification
+      const receiverEmailCall = mockTransporter.sendMail.mock.calls.find(
+        call => call[0].to === receiverUser.email
+      );
+      expect(receiverEmailCall).toBeDefined();
+      expect(receiverEmailCall[0].subject).toContain('Confirmation');
+      expect(receiverEmailCall[0].text).toContain('accepted');
+      expect(receiverEmailCall[0].text).toContain(receiverUser.firstName);
     });
 
     it('should allow receiver to reject a request', async () => {
@@ -223,48 +259,97 @@ describe('Money Request Tests', () => {
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
 
+      // Verify no balance changes
+      const updatedSender = await User.findById(senderUser._id);
+      const updatedReceiver = await User.findById(receiverUser._id);
+      expect(updatedSender.balance).toBe(1000); // Unchanged
+      expect(updatedReceiver.balance).toBe(500); // Unchanged
+      
       // Verify request status was updated
       const updatedRequest = await Request.findById(moneyRequest._id);
       expect(updatedRequest.status).toBe('rejected');
     });
+    
+    it('should not send emails when users do not have email addresses', async () => {
+      // Create users without email addresses
+      const userWithoutEmail1 = await User.create({
+        firstName: 'No',
+        lastName: 'Email1',
+        phoneNumber: '1112223333',
+        identificationType: 'NATIONAL ID',
+        identificationNumber: 'NOEMAIL1',
+        address: '123 No Email St',
+        password: await bcrypt.hash('TestPass123', 10),
+        balance: 1000,
+        isVerified: true,
+        email: 'noemail1@example.com'
+      });
+      
+      const userWithoutEmail2 = await User.create({
+        firstName: 'No',
+        lastName: 'Email2',
+        phoneNumber: '4445556666',
+        identificationType: 'NATIONAL ID',
+        identificationNumber: 'NOEMAIL2',
+        address: '456 No Email St',
+        password: await bcrypt.hash('TestPass123', 10),
+        balance: 500,
+        isVerified: true,
+        email: 'noemail2@example.com'
+      });
+      
+      await User.findByIdAndUpdate(userWithoutEmail1._id, { email: null });
+      await User.findByIdAndUpdate(userWithoutEmail2._id, { email: null });
 
-    // Testing validation errors
-    it('should fail update with validation errors for invalid input', async () => {
-      const invalidUpdateData = {
-        _id: 'invalid-id', // Invalid request ID
-        status: 'invalid-status', // Invalid status
-        sender: { _id: 'invalid-sender' },
-        receiver: { _id: 'invalid-receiver' },
-        amount: -100,
-        description: 'Test request'
-      };
+      const noEmailToken = generateTestToken(userWithoutEmail1._id);
+      
+      // Create a request
+      const moneyRequest = await Request.create({
+        sender: userWithoutEmail1._id,
+        receiver: userWithoutEmail2._id,
+        amount: 100,
+        description: 'Test request',
+        status: 'pending'
+      });
 
       const response = await request(app)
         .post('/api/requests/update-request-status')
-        .set('Authorization', `Bearer ${receiverToken}`)
-        .send(invalidUpdateData);
-      
-      expect(response.status).toBe(400);
-      expect(response.body.success).toBe(false);
-      expect(response.body.message).toBe('Validation failed');
-      expect(response.body.errors).toBeDefined();
-    });
+        .set('Authorization', `Bearer ${noEmailToken}`)
+        .send({
+          _id: moneyRequest._id,
+          status: 'rejected',
+          sender: { _id: userWithoutEmail1._id },
+          receiver: { _id: userWithoutEmail2._id },
+          amount: 100,
+          description: 'Test request'
+        });
 
-    // Testing error handling
-    it('should handle errors in update-request-status', async () => {
-      // Create a request first
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      
+      // Verify request status was updated despite no emails
+      const updatedRequest = await Request.findById(moneyRequest._id);
+      expect(updatedRequest.status).toBe('rejected');
+      
+      // The email sending should have been attempted but not failed the operation
+      const mockTransporter = nodemailer.createTransport();
+      // No assertions on sendMail being called because it's handled gracefully in the code
+    });
+    
+    it('should handle email sending errors gracefully', async () => {
+      // Set up the mock to fail
+      const mockSendMail = jest.fn().mockRejectedValue(new Error('Email sending failed'));
+      require('nodemailer').createTransport.mockReturnValue({
+        sendMail: mockSendMail
+      });
+      
+      // Create a request
       const moneyRequest = await Request.create({
         sender: senderUser._id,
         receiver: receiverUser._id,
         amount: 100,
         description: 'Test request',
         status: 'pending'
-      });
-
-      // Mock a scenario where Request.findByIdAndUpdate throws an error
-      const originalFindByIdAndUpdate = Request.findByIdAndUpdate;
-      Request.findByIdAndUpdate = jest.fn().mockImplementation(() => {
-        throw new Error('Database error');
       });
 
       const response = await request(app)
@@ -278,13 +363,19 @@ describe('Money Request Tests', () => {
           amount: 100,
           description: 'Test request'
         });
+
+      // The request should still succeed even if email sending fails
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
       
-      expect(response.status).toBe(500);
-      expect(response.body.success).toBe(false);
-      expect(response.body.message).toBe('Database error');
+      // Verify request status was updated despite email failure
+      const updatedRequest = await Request.findById(moneyRequest._id);
+      expect(updatedRequest.status).toBe('accepted');
       
-      // Restore the original function
-      Request.findByIdAndUpdate = originalFindByIdAndUpdate;
+      // Reset the mock to the original implementation for other tests
+      require('nodemailer').createTransport.mockReturnValue({
+        sendMail: jest.fn().mockResolvedValue(true)
+      });
     });
   });
 

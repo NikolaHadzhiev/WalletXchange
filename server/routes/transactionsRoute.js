@@ -14,6 +14,36 @@ const nodemailer = require("nodemailer"); // For sending emails
 const window = new JSDOM("").window;
 const purify = DOMPurify(window);
 
+// Create reusable email transporter object
+const createTransporter = () => {
+  return nodemailer.createTransport({
+    host: process.env.email_host,
+    port: process.env.email_port,
+    secure: true,
+    auth: {
+      user: process.env.email_username,
+      pass: process.env.email_password,
+    },
+  });
+};
+
+// Helper function to send transaction notification emails
+const sendTransactionEmail = async (email, subject, message) => {
+  try {
+    const transporter = createTransporter();
+    await transporter.sendMail({
+      from: process.env.email_username,
+      to: email,
+      subject: subject,
+      text: message,
+    });
+    return true;
+  } catch (error) {
+    console.error("Email sending failed:", error);
+    return false;
+  }
+};
+
 // Transfer money from one account to another
 router.post("/transfer-money", authenticationMiddleware, async (req, res) => {
   try {
@@ -88,6 +118,51 @@ router.post("/transfer-money", authenticationMiddleware, async (req, res) => {
     await User.findByIdAndUpdate(receiverId, {
       $inc: { balance: amount },
     });
+
+    // Get sender and receiver details for email notifications
+    const senderUser = await User.findById(senderId);
+    const receiverUser = await User.findById(receiverId);
+
+    // Send email notifications
+    if (senderUser && senderUser.email) {
+      await sendTransactionEmail(
+        senderUser.email,
+        "Money Transfer Confirmation - WalletXChange",
+        `Dear ${senderUser.firstName},
+
+          We're writing to confirm that your transaction has been processed successfully.
+
+          Transaction details:
+          - Recipient: ${receiverUser ? `${receiverUser.firstName} ${receiverUser.lastName}` : 'User'}
+          - Reference: ${transaction.reference}
+          - Date: ${new Date().toLocaleString()}
+
+          Thank you for using WalletXChange!
+
+          Best regards,
+          The WalletXChange Team`
+      );
+    }
+
+    if (receiverUser && receiverUser.email) {
+      await sendTransactionEmail(
+        receiverUser.email,
+        "Money Received - WalletXChange",
+        `Dear ${receiverUser.firstName},
+
+          Good news! You've received a new payment.
+
+          Transaction details:
+          - Sender: ${senderUser ? `${senderUser.firstName} ${senderUser.lastName}` : 'User'}
+          - Reference: ${transaction.reference}
+          - Date: ${new Date().toLocaleString()}
+
+          Thank you for using WalletXChange!
+
+          Best regards,
+          The WalletXChange Team`
+      );
+    }
 
     res.send({
       message: "Transaction successful",
@@ -255,7 +330,7 @@ router.post("/deposit-money", authenticationMiddleware, async (req, res) => {
       subject: "Deposit Verification Code for WalletXChange",
       text: `Dear user,
 
-      Your verification code for confirming your deposit of $${amount} is: ${verificationCode}.
+      Your verification code for confirming your deposit is: ${verificationCode}.
 
       Please enter this code within 10 minutes to complete your deposit. If you did not request this deposit, please disregard this message.
 
@@ -332,6 +407,27 @@ router.post("/verify-deposit", authenticationMiddleware, async (req, res) => {
 
       // Delete the verification code after successful deposit
       await DepositCode.deleteOne({ _id: codeRecord._id });
+
+      // Send confirmation email for successful deposit
+      const user = await User.findById(userId);
+      if (user && user.email) {
+        await sendTransactionEmail(
+          user.email,
+          "Deposit Successful - WalletXChange",
+          `Dear ${user.firstName},
+
+            We're pleased to confirm that your deposit has been completed successfully.
+
+            Deposit details:
+            - Transaction ID: ${newTransaction._id}
+            - Date: ${new Date().toLocaleString()}
+
+            Thank you for using WalletXChange!
+
+            Best regards,
+            The WalletXChange Team`
+        );
+      }
 
       res.send({
         success: true,

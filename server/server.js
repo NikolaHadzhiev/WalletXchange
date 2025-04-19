@@ -47,6 +47,7 @@ const userRoute = require('./routes/usersRoute');
 const transactionsRoute = require("./routes/transactionsRoute");
 const requestsRoute = require("./routes/requestsRoute");
 const ddosRoute = require("./routes/ddosRoute");
+const reportsRoute = require("./routes/reportsRoute");
 
 const PORT = process.env.PORT || 5000;
 
@@ -55,6 +56,7 @@ app.use("/api/", ddosProtection);
 app.use('/api/users', userRoute);
 app.use("/api/transactions", transactionsRoute);
 app.use("/api/requests", requestsRoute);
+app.use("/api/reports", reportsRoute);
 
 if (process.env.NODE_ENV === 'production') {
   // Serve static files from the React app

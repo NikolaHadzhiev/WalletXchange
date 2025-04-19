@@ -28,8 +28,8 @@ router.post("/get-transaction-summary", authenticationMiddleware, async (req, re
       dateFilter.createdAt = { $gte: new Date(fromDate) };
     } else if (toDate) {
       dateFilter.createdAt = { $lte: new Date(toDate) };
-    }
-
+    }    
+    
     // Query for received money (income)
     const receivedTransactions = await Transaction.find({
       receiver: userId,
@@ -43,9 +43,18 @@ router.post("/get-transaction-summary", authenticationMiddleware, async (req, re
       receiver: { $ne: userId }, // Exclude self-transfers
       ...dateFilter
     });
-
-    // Calculate totals
+    
+    // Query for deposit transactions (sender and receiver are the same)
+    const depositTransactions = await Transaction.find({
+      sender: userId,
+      receiver: userId,
+      ...dateFilter
+    });    
+      // Calculate totals
     const totalIncome = receivedTransactions.reduce(
+      (total, transaction) => total + transaction.amount,
+      0
+    ) + depositTransactions.reduce(
       (total, transaction) => total + transaction.amount,
       0
     );
@@ -54,8 +63,14 @@ router.post("/get-transaction-summary", authenticationMiddleware, async (req, re
       (total, transaction) => total + transaction.amount,
       0
     );
+    
+    const netFlow = totalIncome - totalExpenses;    // Process transaction counts properly
+    const regularIncomingCount = receivedTransactions.length;  // Regular transfers received
+    const depositCount = depositTransactions.length;  // Self-deposits
+    const outgoingCount = sentTransactions.length;  // Money sent to others
 
-    const netFlow = totalIncome - totalExpenses;
+    // Calculate total incoming count by combining regular incoming transfers and deposits
+    const totalIncomingCount = regularIncomingCount + depositCount;
 
     res.send({
       message: "Transaction summary fetched",
@@ -63,8 +78,8 @@ router.post("/get-transaction-summary", authenticationMiddleware, async (req, re
         totalIncome,
         totalExpenses,
         netFlow,
-        incomingTransactionCount: receivedTransactions.length,
-        outgoingTransactionCount: sentTransactions.length,
+        incomingTransactionCount: totalIncomingCount,
+        outgoingTransactionCount: outgoingCount
       },
       success: true,
     });
@@ -80,7 +95,7 @@ router.post("/get-transaction-summary", authenticationMiddleware, async (req, re
 // Get monthly transaction data for charts
 router.post("/get-monthly-data", authenticationMiddleware, async (req, res) => {
   try {
-    const { userId, year } = req.body;
+    const { userId, year, fromDate, toDate } = req.body;
     
     // Validate userId
     if (!mongoose.isValidObjectId(userId)) {
@@ -94,9 +109,16 @@ router.post("/get-monthly-data", authenticationMiddleware, async (req, res) => {
     // Default to current year if not specified
     const targetYear = year || new Date().getFullYear();
     
-    // Start and end dates for the target year
-    const startDate = new Date(targetYear, 0, 1); // January 1
-    const endDate = new Date(targetYear, 11, 31); // December 31    
+    // Start and end dates - use provided date range if available
+    let startDate, endDate;
+    
+    if (fromDate && toDate) {
+      startDate = new Date(fromDate);
+      endDate = new Date(toDate);
+    } else {
+      startDate = new Date(targetYear, 0, 1); // January 1
+      endDate = new Date(targetYear, 11, 31); // December 31
+    }
     
     // Aggregate income by month
     const monthlyIncome = await Transaction.aggregate([

@@ -31,8 +31,7 @@ function ReportsPage() {
     expenseCategories: {},
     incomeCategories: {}
   });
-  
-  // Filter states
+    // Filter states
   const [dateRange, setDateRange] = useState([null, null]);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(null);
@@ -139,77 +138,6 @@ function ReportsPage() {
     }
   };
 
-  // Helper functions to handle direct month values
-  const fetchSummaryDataWithMonth = async (yearValue, monthValue) => {
-    try {
-      dispatch(ShowLoading());
-      
-      const payload = {
-        userId: user._id
-      };
-      
-      // Use the direct month value
-      const year = yearValue || new Date().getFullYear();
-      const month = monthValue;
-      
-      if (month) {
-        const startOfMonth = moment([year, month - 1, 1]);
-        const endOfMonth = moment(startOfMonth).endOf("month");
-        
-        payload.fromDate = startOfMonth.format("YYYY-MM-DD");
-        payload.toDate = endOfMonth.format("YYYY-MM-DD");
-      }
-      
-      const response = await GetTransactionSummary(payload);
-      
-      if (response.success) {
-        setSummary(response.data);
-      } else {
-        message.error(response.message);
-      }
-      
-      dispatch(HideLoading());
-    } catch (error) {
-      dispatch(HideLoading());
-      message.error("Something went wrong while fetching summary data");
-    }
-  };
-
-  const fetchCategoryDataWithMonth = async (yearValue, monthValue) => {
-    try {
-      dispatch(ShowLoading());
-      
-      const payload = {
-        userId: user._id
-      };
-      
-      // Use the direct month value
-      const year = yearValue || new Date().getFullYear();
-      const month = monthValue;
-      
-      if (month) {
-        const startOfMonth = moment([year, month - 1, 1]);
-        const endOfMonth = moment(startOfMonth).endOf("month");
-        
-        payload.fromDate = startOfMonth.format("YYYY-MM-DD");
-        payload.toDate = endOfMonth.format("YYYY-MM-DD");
-      }
-      
-      const response = await GetCategorySummary(payload);
-      
-      if (response.success) {
-        setCategoryData(response.data);
-      } else {
-        message.error(response.message);
-      }
-      
-      dispatch(HideLoading());
-    } catch (error) {
-      dispatch(HideLoading());
-      message.error("Something went wrong while fetching category data");
-    }
-  };
-
   // Helper functions to handle full year range when no month is selected
   const fetchSummaryDataWithYearRange = async (yearValue, startDate, endDate) => {
     try {
@@ -270,38 +198,149 @@ function ReportsPage() {
 
   // Handle date range change
   const handleDateRangeChange = async (dates) => {
+    // If dates is null or doesn't contain two valid dates, just update the state
+    if (!dates || !dates[0] || !dates[1]) {
+      setDateRange(dates);
+      return;
+    }
+
+    // Check if start date is after end date
+    if (dates[0].isAfter(dates[1])) {
+      message.error("Start date cannot be after end date");
+      return;
+    }
+
     setDateRange(dates);
     setSelectedMonth(null); // Clear month selection when date range is set
     
-    if (dates && dates[0] && dates[1]) {
-      await fetchSummaryData(selectedYear);
-      await fetchCategoryData(selectedYear);
+    // Use the actual dates that were passed to the function
+    // instead of relying on the updated state
+    const payload = {
+      userId: user._id,
+      fromDate: dates[0].format("YYYY-MM-DD"),
+      toDate: dates[1].format("YYYY-MM-DD")
+    };
+    
+    try {
+      dispatch(ShowLoading());
+      
+      // Fetch summary data
+      const summaryResponse = await GetTransactionSummary(payload);
+      if (summaryResponse.success) {
+        setSummary(summaryResponse.data);
+      } else {
+        message.error(summaryResponse.message);
+      }
+      
+      // Fetch category data
+      const categoryResponse = await GetCategorySummary(payload);
+      if (categoryResponse.success) {
+        setCategoryData(categoryResponse.data);
+      } else {
+        message.error(categoryResponse.message);
+      }
+      
+      // Also fetch monthly data for the selected year (with the date range filter)
+      const monthlyResponse = await GetMonthlyData({
+        userId: user._id,
+        year: dates[0].year(),
+        fromDate: dates[0].format("YYYY-MM-DD"),
+        toDate: dates[1].format("YYYY-MM-DD")
+      });
+      
+      if (monthlyResponse.success) {
+        // Transform the data to include month names
+        const transformedData = monthlyResponse.data.map(item => ({
+          ...item,
+          monthName: moment().month(item.month - 1).format("MMM"),
+        }));
+        setMonthlyData(transformedData);
+      } else {
+        message.error(monthlyResponse.message);
+      }
+      
+      dispatch(HideLoading());
+    } catch (error) {
+      dispatch(HideLoading());
+      message.error("Something went wrong while fetching data");
     }
   };  
-  
-  // Handle month change
+    // Handle month change
   const handleMonthChange = async (value) => {
-    setDateRange([null, null]); // Clear date range when month is selected
+    setDateRange([null, null]);    
+    // When clearing, value will be undefined, explicitly set to null
+    if (value === undefined) {
+      value = null;
+    }
+    
     setSelectedMonth(value);
     
     // If value is null (cleared) or undefined, show full year data
     if (value === null || value === undefined) {
-      // Create a date range for the entire selected year
-      const startOfYear = moment([selectedYear, 0, 1]); // January 1st of selected year
-      const endOfYear = moment([selectedYear, 11, 31]); // December 31st of selected year
-      
-      await fetchSummaryDataWithYearRange(selectedYear, startOfYear, endOfYear);
-      await fetchCategoryDataWithYearRange(selectedYear, startOfYear, endOfYear);
+      await handleClearMonth(); // Reuse the clear month handler
     } else {
-      // Store the month value for direct use in API calls
       const monthValue = value;
       
-      // Modify the fetchSummaryData and fetchCategoryData functions to use the direct month value
-      await fetchSummaryDataWithMonth(selectedYear, monthValue);
-      await fetchCategoryDataWithMonth(selectedYear, monthValue);
+      // Get first and last days of the selected month in the selected year
+      const startOfMonth = moment([selectedYear, monthValue - 1, 1]);
+      const endOfMonth = moment([selectedYear, monthValue - 1]).endOf('month');
+      
+      try {
+        dispatch(ShowLoading());
+        
+        // Format dates for API
+        const fromDate = startOfMonth.format("YYYY-MM-DD");
+        const toDate = endOfMonth.format("YYYY-MM-DD");
+        
+        const payload = {
+          userId: user._id,
+          fromDate,
+          toDate
+        };
+        
+        // Fetch summary data
+        const summaryResponse = await GetTransactionSummary(payload);
+        if (summaryResponse.success) {
+          setSummary(summaryResponse.data);
+        } else {
+          message.error(summaryResponse.message);
+        }
+        
+        // Fetch category data
+        const categoryResponse = await GetCategorySummary(payload);
+        if (categoryResponse.success) {
+          setCategoryData(categoryResponse.data);
+        } else {
+          message.error(categoryResponse.message);
+        }
+        
+        // Fetch monthly data with the month filter
+        const monthlyResponse = await GetMonthlyData({
+          userId: user._id,
+          year: selectedYear,
+          fromDate,
+          toDate
+        });
+        
+        if (monthlyResponse.success) {
+          // Transform the data to include month names
+          const transformedData = monthlyResponse.data.map(item => ({
+            ...item,
+            monthName: moment().month(item.month - 1).format("MMM"),
+          }));
+          setMonthlyData(transformedData);
+        } else {
+          message.error(monthlyResponse.message);
+        }
+        
+        dispatch(HideLoading());
+      } catch (error) {
+        dispatch(HideLoading());
+        message.error("Something went wrong while fetching data");
+      }
     }
   };
-  
+
   // Handle year change for monthly data
   const handleYearChange = async (value) => {
     setSelectedYear(value);
@@ -322,19 +361,59 @@ function ReportsPage() {
       await fetchCategoryData(value);
     }
   };
-
   // Reset all filters
   const handleResetFilters = async () => {
     const currentYear = new Date().getFullYear();
 
+    // Update state
     setDateRange([null, null]);
     setSelectedMonth(null);
     setSelectedYear(currentYear);
     
     // Re-fetch all data without filters
-    await fetchSummaryData(currentYear);
-    await fetchMonthlyData(currentYear);
-    await fetchCategoryData(currentYear);
+    // Pass the currentYear directly to avoid state lag
+    try {
+      dispatch(ShowLoading());
+      
+      // Run all fetch operations with the new values directly
+      const summaryPromise = GetTransactionSummary({ userId: user._id });
+      const monthlyPromise = GetMonthlyData({ userId: user._id, year: currentYear });
+      const categoryPromise = GetCategorySummary({ userId: user._id });
+      
+      const [summaryResponse, monthlyResponse, categoryResponse] = await Promise.all([
+        summaryPromise,
+        monthlyPromise,
+        categoryPromise
+      ]);
+      
+      // Update state with new data
+      if (summaryResponse.success) {
+        setSummary(summaryResponse.data);
+      } else {
+        message.error(summaryResponse.message);
+      }
+      
+      if (monthlyResponse.success) {
+        const transformedData = monthlyResponse.data.map(item => ({
+          ...item,
+          monthName: moment().month(item.month - 1).format("MMM"),
+        }));
+        setMonthlyData(transformedData);
+      } else {
+        message.error(monthlyResponse.message);
+      }
+      
+      if (categoryResponse.success) {
+        setCategoryData(categoryResponse.data);
+      } else {
+        message.error(categoryResponse.message);
+      }
+      
+      dispatch(HideLoading());
+    } catch (error) {
+      dispatch(HideLoading());
+      message.error("Something went wrong while resetting filters");
+    }
   };
 
   // Transform category data for pie charts
@@ -366,8 +445,43 @@ function ReportsPage() {
     const startOfYear = moment([selectedYear, 0, 1]); // January 1st of selected year
     const endOfYear = moment([selectedYear, 11, 31]); // December 31st of selected year
     
-    await fetchSummaryDataWithYearRange(selectedYear, startOfYear, endOfYear);
-    await fetchCategoryDataWithYearRange(selectedYear, startOfYear, endOfYear);
+    try {
+      dispatch(ShowLoading());
+      
+      // Format dates for API
+      const fromDate = startOfYear.format("YYYY-MM-DD");
+      const toDate = endOfYear.format("YYYY-MM-DD");
+      
+      // Fetch summary data
+      await fetchSummaryDataWithYearRange(selectedYear, startOfYear, endOfYear);
+      
+      // Fetch category data
+      await fetchCategoryDataWithYearRange(selectedYear, startOfYear, endOfYear);
+      
+      // Also fetch monthly data for the entire year
+      const monthlyResponse = await GetMonthlyData({
+        userId: user._id,
+        year: selectedYear,
+        fromDate,
+        toDate
+      });
+      
+      if (monthlyResponse.success) {
+        // Transform the data to include month names
+        const transformedData = monthlyResponse.data.map(item => ({
+          ...item,
+          monthName: moment().month(item.month - 1).format("MMM"),
+        }));
+        setMonthlyData(transformedData);
+      } else {
+        message.error(monthlyResponse.message);
+      }
+      
+      dispatch(HideLoading());
+    } catch (error) {
+      dispatch(HideLoading());
+      message.error("Something went wrong while fetching data");
+    }
   };
 
   return (
@@ -382,11 +496,11 @@ function ReportsPage() {
                 placeholder="Select Month"
                 style={{ width: 120 }}
                 onChange={handleMonthChange}
-                onClear={handleClearMonth}
+                onClear={handleClearMonth}                
                 value={selectedMonth}
                 options={monthOptions}
                 allowClear
-                disabled={dateRange[0] !== null || dateRange[1] !== null}
+                disabled={dateRange && (dateRange[0] !== null || dateRange[1] !== null)}
               />
               
               <Select
@@ -396,7 +510,7 @@ function ReportsPage() {
                 options={yearOptions}
               />
             </Space>
-            <span>OR</span>            
+            <span>OR</span>              
             <DatePicker.RangePicker
               style={{ width: 250 }}
               onChange={handleDateRangeChange}
@@ -407,8 +521,6 @@ function ReportsPage() {
           </Space>
         </div>
       </div>
-
-      {/* Summary Cards */}
       <Row gutter={16} className="mt-4">
         <Col span={8}>
           <Card>
@@ -502,8 +614,6 @@ function ReportsPage() {
           </AreaChart>
         </ResponsiveContainer>
       </Card>
-
-      {/* Category Charts */}
       <Row gutter={16} className="mt-4">
         <Col span={12}>
           <Card title="Expense Categories">

@@ -3,10 +3,11 @@ import { DownOutlined, CreditCardOutlined } from '@ant-design/icons';
 import { CreatePaypalOrder, RequestPaypalVerificationCode, VerifyPaypalDeposit, DepositMoney, VerifyDepositCode } from "../../api/transactions";
 import { useDispatch, useSelector } from "react-redux";
 import { HideLoading, ShowLoading } from "../../state/loaderSlice";
-import DOMPurify from "dompurify"; // For sanitizing data
+import DOMPurify from "dompurify";
 import { useState, useEffect, useRef } from "react";
 import StripeCheckout from "react-stripe-checkout";
 import { useNavigate } from "react-router-dom";
+import CryptoJS from 'crypto-js';
 
 function DepositModal({ showDepositModal, setShowDepositModal, reloadData }) {
   const [form] = Form.useForm();
@@ -14,14 +15,56 @@ function DepositModal({ showDepositModal, setShowDepositModal, reloadData }) {
   const { user } = useSelector((state) => state.users);
   const stripeCheckoutRef = useRef(null);
   const navigate = useNavigate();
-
-  const [verificationCode, setVerificationCode] = useState(""); // State for holding the verification code
-  const [showVerificationModal, setShowVerificationModal] = useState(false); // Flag to toggle the verification modal
+  
+  const [verificationCode, setVerificationCode] = useState("");
+  const [showVerificationModal, setShowVerificationModal] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState("stripe");
   const [paypalLoading, setPaypalLoading] = useState(false);
   const [paypalOrderId, setPaypalOrderId] = useState(null);
   const [showPaypalVerificationModal, setShowPaypalVerificationModal] = useState(false);
   const [paypalVerificationCode, setPaypalVerificationCode] = useState("");
+
+  // Enhanced encryption functions
+  const encryptData = (data) => {
+    try {
+      const key = import.meta.env.VITE_STATE_ENCRYPTION_KEY || 'temp-fallback-key';
+      const saltedData = {
+        data,
+        salt: CryptoJS.lib.WordArray.random(128/8).toString(),
+        timestamp: Date.now()
+      };
+      const hmac = CryptoJS.HmacSHA256(JSON.stringify(saltedData), key).toString();
+      const encryptedData = CryptoJS.AES.encrypt(JSON.stringify({...saltedData, hmac}), key).toString();
+      return encodeURIComponent(encryptedData);
+    } catch (error) {
+      console.error('Encryption failed');
+      return null;
+    }
+  };
+
+  const decryptData = (ciphertext) => {
+    try {
+      const key = import.meta.env.VITE_STATE_ENCRYPTION_KEY || 'temp-fallback-key';
+      const decrypted = CryptoJS.AES.decrypt(decodeURIComponent(ciphertext), key).toString(CryptoJS.enc.Utf8);
+      const data = JSON.parse(decrypted);
+      
+      const { hmac, ...payloadWithoutHmac } = data;
+      const computedHmac = CryptoJS.HmacSHA256(JSON.stringify(payloadWithoutHmac), key).toString();
+      
+      if (computedHmac !== hmac) {
+        throw new Error('HMAC verification failed');
+      }
+      
+      if (Date.now() - payloadWithoutHmac.timestamp > 3600000) {
+        throw new Error('Data expired');
+      }
+      
+      return payloadWithoutHmac.data;
+    } catch (error) {
+      console.error('Decryption/verification failed:', error.message);
+      return null;
+    }
+  };
 
   // Set the email value in the form when user data is available or when modal becomes visible
   useEffect(() => {
@@ -116,16 +159,41 @@ function DepositModal({ showDepositModal, setShowDepositModal, reloadData }) {
       }
       setPaypalLoading(true);
       dispatch(ShowLoading());
-      // Include amount in the return/cancel URLs
+      
+      // Create encrypted state with HMAC
+      const stateData = {
+        amount,
+        ts: Date.now(),
+        uid: user._id
+      };
+      
+      // Encrypt the state
+      const encryptedState = encryptData(stateData);
+      
       const baseUrl = window.location.origin + window.location.pathname;
-      const returnUrl = `${baseUrl}?paypal=success&amount=${amount}`;
+      const returnUrl = `${baseUrl}?paypal=success&state=${encodeURIComponent(encryptedState)}`;
       const cancelUrl = `${baseUrl}?paypal=cancel`;
-      // Create PayPal order with return/cancel URLs
-      const response = await CreatePaypalOrder({ amount, userId: user._id, returnUrl, cancelUrl });
+
+      const response = await CreatePaypalOrder({ 
+        amount, 
+        userId: user._id,
+        returnUrl,
+        cancelUrl
+      });
+      
+      // Encrypt the order ID before storing
+      const encryptedOrderId = encryptData(response.orderID);
+      if (!encryptedOrderId) {
+        throw new Error('Failed to encrypt order data');
+      }
+      
+      // Store encrypted order ID
+      sessionStorage.setItem('paypalOrderId', encryptedOrderId);
+      
       dispatch(HideLoading());
       setPaypalLoading(false);
+      
       if (response.success && response.orderID && response.approvalUrl) {
-        // No need to setPaypalOrderId here, will get it from PayPal redirect
         message.success("PayPal order created. You will be redirected to PayPal.");
         window.location.href = response.approvalUrl;
       } else {
@@ -138,25 +206,59 @@ function DepositModal({ showDepositModal, setShowDepositModal, reloadData }) {
     }
   };
 
-  // Handle PayPal return/cancel redirects
+  // Handle PayPal return with encrypted state and order ID
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    // PayPal appends token=ORDERID to the return URL
     const orderIdFromUrl = params.get("token");
-    const amountFromUrl = params.get("amount");
+    const encryptedState = params.get("state");
+    
     if (params.get("paypal") === "success" && orderIdFromUrl) {
-      setPaypalOrderId(orderIdFromUrl);
-      if (amountFromUrl) {
-        form.setFieldsValue({ amount: parseFloat(amountFromUrl) });
+      try {
+        // Decrypt and validate state
+        const decryptedState = decryptData(decodeURIComponent(encryptedState));
+        
+        if (!decryptedState || 
+            decryptedState.uid !== user._id || 
+            Date.now() - decryptedState.ts > 3600000) {
+          message.error("Invalid or expired session. Please try again.");
+          navigate(window.location.pathname, { replace: true });
+          return;
+        }
+
+        // Decrypt and verify stored order ID
+        const encryptedStoredOrderId = sessionStorage.getItem('paypalOrderId');
+        if (!encryptedStoredOrderId) {
+          message.error("No order data found. Please try again.");
+          navigate(window.location.pathname, { replace: true });
+          return;
+        }
+
+        const decryptedOrderId = decryptData(encryptedStoredOrderId);
+        if (!decryptedOrderId || decryptedOrderId !== orderIdFromUrl) {
+          message.error("Order verification failed. Please try again.");
+          navigate(window.location.pathname, { replace: true });
+          return;
+        }
+
+        setPaypalOrderId(orderIdFromUrl);
+        form.setFieldsValue({ amount: decryptedState.amount });
+        message.success("Returned from PayPal. Please request your verification code to complete the deposit.");
+        setShowPaypalVerificationModal(true);
+        
+        // Clean up
+        sessionStorage.removeItem('paypalOrderId');
+        navigate(window.location.pathname, { replace: true });
+      } catch (error) {
+        console.error('PayPal return processing error:', error);
+        message.error("Error processing PayPal return. Please try again.");
+        navigate(window.location.pathname, { replace: true });
       }
-      message.success("Returned from PayPal. Please request your verification code to complete the deposit.");
-      setShowPaypalVerificationModal(true);
-      navigate(window.location.pathname, { replace: true });
     } else if (params.get("paypal") === "cancel") {
       message.info("PayPal deposit was cancelled.");
+      sessionStorage.removeItem('paypalOrderId');
       navigate(window.location.pathname, { replace: true });
     }
-  }, [navigate, form]);
+  }, [navigate, form, user._id]);
 
   // PayPal verification code handling
   const requestVerificationCode = async () => {

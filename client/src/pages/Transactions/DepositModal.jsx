@@ -4,13 +4,14 @@ import { CreatePaypalOrder, RequestPaypalVerificationCode, VerifyPaypalDeposit, 
 import { useDispatch, useSelector } from "react-redux";
 import { HideLoading, ShowLoading } from "../../state/loaderSlice";
 import DOMPurify from "dompurify"; // For sanitizing data
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import StripeCheckout from "react-stripe-checkout";
 
 function DepositModal({ showDepositModal, setShowDepositModal, reloadData }) {
   const [form] = Form.useForm();
   const dispatch = useDispatch();
   const { user } = useSelector((state) => state.users);
+  const stripeCheckoutRef = useRef(null);
 
   const [verificationCode, setVerificationCode] = useState(""); // State for holding the verification code
   const [showVerificationModal, setShowVerificationModal] = useState(false); // Flag to toggle the verification modal
@@ -294,14 +295,14 @@ function DepositModal({ showDepositModal, setShowDepositModal, reloadData }) {
                 onClick={() => setShowDepositModal(false)}
               >
                 Cancel
-              </button>              
+              </button>
               {paymentMethod === 'stripe' && (
                 <div>
                   <button 
                     className="primary-contained-btn" 
                     onClick={() => {
                       if(handleStripeCheckout()) {
-                        document.getElementById('stripe-checkout-button').click();
+                        stripeCheckoutRef.current && stripeCheckoutRef.current.onClick();
                       }
                     }}
                   >
@@ -309,7 +310,7 @@ function DepositModal({ showDepositModal, setShowDepositModal, reloadData }) {
                   </button>
                   <div style={{display: 'none'}}>
                     <StripeCheckout
-                      id="stripe-checkout-button"
+                      ref={stripeCheckoutRef}
                       token={onToken}
                       currency="USD"
                       amount={(form.getFieldValue("amount") || 0) * 100}

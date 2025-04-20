@@ -53,12 +53,15 @@ const sendTransactionEmail = async (email, subject, message) => {
 // Initiate PayPal deposit (create order only)
 router.post("/create-paypal-order", authenticationMiddleware, async (req, res) => {
   try {
-    const { amount, userId } = req.body;
+    const { amount, userId, returnUrl, cancelUrl } = req.body;
     if (!amount || isNaN(amount) || amount <= 0) {
       return res.send({ message: "Invalid amount", data: null, success: false });
     }
     if (!mongoose.isValidObjectId(userId)) {
       return res.send({ message: "Invalid user ID", data: null, success: false });
+    }
+    if (!returnUrl || !cancelUrl) {
+      return res.send({ message: "Missing return or cancel URL", data: null, success: false });
     }
     // Create PayPal order
     const request = new paypal.orders.OrdersCreateRequest();
@@ -66,12 +69,16 @@ router.post("/create-paypal-order", authenticationMiddleware, async (req, res) =
     request.requestBody({
       intent: "CAPTURE",
       purchase_units: [{ amount: { currency_code: "USD", value: amount.toString() } }],
+      application_context: {
+        return_url: returnUrl,
+        cancel_url: cancelUrl,
+      },
     });
     const order = await paypalClient.execute(request);
-    
     res.send({
       success: true,
       orderID: order.result.id,
+      approvalUrl: order.result.links.find(l => l.rel === "approve")?.href,
       message: "PayPal order created successfully.",
     });
   } catch (error) {

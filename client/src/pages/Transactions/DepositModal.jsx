@@ -6,12 +6,14 @@ import { HideLoading, ShowLoading } from "../../state/loaderSlice";
 import DOMPurify from "dompurify"; // For sanitizing data
 import { useState, useEffect, useRef } from "react";
 import StripeCheckout from "react-stripe-checkout";
+import { useNavigate } from "react-router-dom";
 
 function DepositModal({ showDepositModal, setShowDepositModal, reloadData }) {
   const [form] = Form.useForm();
   const dispatch = useDispatch();
   const { user } = useSelector((state) => state.users);
   const stripeCheckoutRef = useRef(null);
+  const navigate = useNavigate();
 
   const [verificationCode, setVerificationCode] = useState(""); // State for holding the verification code
   const [showVerificationModal, setShowVerificationModal] = useState(false); // Flag to toggle the verification modal
@@ -114,54 +116,49 @@ function DepositModal({ showDepositModal, setShowDepositModal, reloadData }) {
       }
       setPaypalLoading(true);
       dispatch(ShowLoading());
-      
-      // First, just create the PayPal order (no verification code yet)
-      const response = await CreatePaypalOrder({ amount, userId: user._id });
-      
+      // Include amount in the return/cancel URLs
+      const baseUrl = window.location.origin + window.location.pathname;
+      const returnUrl = `${baseUrl}?paypal=success&amount=${amount}`;
+      const cancelUrl = `${baseUrl}?paypal=cancel`;
+      // Create PayPal order with return/cancel URLs
+      const response = await CreatePaypalOrder({ amount, userId: user._id, returnUrl, cancelUrl });
       dispatch(HideLoading());
-      
-      if (response.success && response.orderID) {
-        setPaypalOrderId(response.orderID);
-        message.success("PayPal order created. Please review your order in PayPal and click 'Continue'.");
-        
-        // Open PayPal window for payment review
-        window.open(
-          `https://www.sandbox.paypal.com/checkoutnow?token=${response.orderID}`,
-          '_blank',
-          'width=500,height=700'
-        );
-        
-        // Show a button for the user to click after they've reviewed their PayPal order
-        message.info(
-          "After reviewing your order in PayPal, click 'Request Verification Code' to continue.",
-          8
-        );
-        
-        // Show modal with button to request verification code
-        setShowPaypalVerificationModal(true);
+      setPaypalLoading(false);
+      if (response.success && response.orderID && response.approvalUrl) {
+        // No need to setPaypalOrderId here, will get it from PayPal redirect
+        message.success("PayPal order created. You will be redirected to PayPal.");
+        window.location.href = response.approvalUrl;
       } else {
         message.error(response.message || "Failed to create PayPal order");
       }
-      
-      setPaypalLoading(false);
     } catch (error) {
       setPaypalLoading(false);
       dispatch(HideLoading());
       message.error(DOMPurify.sanitize(error.message));
     }
   };
-  
-  // Handle Stripe checkout validation before proceeding
-  const handleStripeCheckout = () => {
-    const amount = form.getFieldValue("amount");
-    if (!amount || amount <= 0) {
-      message.error("Please enter a valid amount.");
-      return false;
+
+  // Handle PayPal return/cancel redirects
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    // PayPal appends token=ORDERID to the return URL
+    const orderIdFromUrl = params.get("token");
+    const amountFromUrl = params.get("amount");
+    if (params.get("paypal") === "success" && orderIdFromUrl) {
+      setPaypalOrderId(orderIdFromUrl);
+      if (amountFromUrl) {
+        form.setFieldsValue({ amount: parseFloat(amountFromUrl) });
+      }
+      message.success("Returned from PayPal. Please request your verification code to complete the deposit.");
+      setShowPaypalVerificationModal(true);
+      navigate(window.location.pathname, { replace: true });
+    } else if (params.get("paypal") === "cancel") {
+      message.info("PayPal deposit was cancelled.");
+      navigate(window.location.pathname, { replace: true });
     }
-    return true;
-  };
-  
-  // Request verification code after reviewing PayPal order
+  }, [navigate, form]);
+
+  // PayPal verification code handling
   const requestVerificationCode = async () => {
     try {
       if (!paypalOrderId) {
@@ -200,12 +197,18 @@ function DepositModal({ showDepositModal, setShowDepositModal, reloadData }) {
         return;
       }
 
+      const amount = form.getFieldValue("amount");
+      if (!amount || amount <= 0) {
+        message.error("Please enter a valid amount.");
+        return;
+      }
+
       dispatch(ShowLoading());
 
       const response = await VerifyPaypalDeposit({
         userId: user._id,
         verificationCode: paypalVerificationCode,
-        amount: form.getFieldValue("amount"),
+        amount: amount,
         orderID: paypalOrderId,
       });
 
@@ -223,6 +226,16 @@ function DepositModal({ showDepositModal, setShowDepositModal, reloadData }) {
       dispatch(HideLoading());
       message.error(DOMPurify.sanitize(error.message));
     }
+  };
+
+  // Stripe validation handler
+  const handleStripeCheckout = () => {
+    const amount = form.getFieldValue("amount");
+    if (!amount || amount <= 0) {
+      message.error("Please enter a valid amount.");
+      return false;
+    }
+    return true;
   };
 
   // Custom PayPal SVG icon

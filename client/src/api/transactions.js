@@ -77,10 +77,23 @@ export const VerifyDepositCode = async (payload) => {
   }
 };
 
-// PayPal deposit - create order (with email)
+// PayPal deposit - create order (without sending verification code)
 export const CreatePaypalOrder = async (payload) => {
   try {
-    const { data } = await axiosInstance.post("/api/paypal/deposit-paypal", payload);
+    const { data } = await axiosInstance.post("/api/paypal/create-paypal-order", payload);
+    return data;
+  } catch (error) {
+    if (!error.response) {
+      return { message: "Server error" };
+    }
+    return error.response.data;
+  }
+};
+
+// PayPal deposit - request verification code
+export const RequestPaypalVerificationCode = async (payload) => {
+  try {
+    const { data } = await axiosInstance.post("/api/paypal/request-verification", payload);
     return data;
   } catch (error) {
     if (!error.response) {

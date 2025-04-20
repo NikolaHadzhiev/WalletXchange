@@ -1,6 +1,6 @@
 import { Modal, Form, Input, InputNumber, message, Dropdown, Menu } from "antd";
 import { DownOutlined, CreditCardOutlined } from '@ant-design/icons';
-import { CreatePaypalOrder, VerifyPaypalDeposit, DepositMoney, VerifyDepositCode } from "../../api/transactions";
+import { CreatePaypalOrder, RequestPaypalVerificationCode, VerifyPaypalDeposit, DepositMoney, VerifyDepositCode } from "../../api/transactions";
 import { useDispatch, useSelector } from "react-redux";
 import { HideLoading, ShowLoading } from "../../state/loaderSlice";
 import DOMPurify from "dompurify"; // For sanitizing data
@@ -96,7 +96,8 @@ function DepositModal({ showDepositModal, setShowDepositModal, reloadData }) {
       const sanitizedErrorMessage = DOMPurify.sanitize(error.message);
       message.error(sanitizedErrorMessage);
     }
-  };
+  };  
+  
   // PayPal handlers (with verification)
   const handlePaypalDeposit = async () => {
     try {
@@ -112,23 +113,80 @@ function DepositModal({ showDepositModal, setShowDepositModal, reloadData }) {
       }
       setPaypalLoading(true);
       dispatch(ShowLoading());
-      const response = await CreatePaypalOrder({ amount, userId: user._id, email });
+      
+      // First, just create the PayPal order (no verification code yet)
+      const response = await CreatePaypalOrder({ amount, userId: user._id });
+      
       dispatch(HideLoading());
-      setPaypalLoading(false);
+      
       if (response.success && response.orderID) {
         setPaypalOrderId(response.orderID);
-        setShowPaypalVerificationModal(true);
-        message.success("Verification code sent to your email. Complete payment in PayPal and enter the code.");
+        message.success("PayPal order created. Please review your order in PayPal and click 'Continue'.");
+        
+        // Open PayPal window for payment review
         window.open(
           `https://www.sandbox.paypal.com/checkoutnow?token=${response.orderID}`,
           '_blank',
           'width=500,height=700'
         );
+        
+        // Show a button for the user to click after they've reviewed their PayPal order
+        message.info(
+          "After reviewing your order in PayPal, click 'Request Verification Code' to continue.",
+          8
+        );
+        
+        // Show modal with button to request verification code
+        setShowPaypalVerificationModal(true);
       } else {
         message.error(response.message || "Failed to create PayPal order");
       }
+      
+      setPaypalLoading(false);
     } catch (error) {
       setPaypalLoading(false);
+      dispatch(HideLoading());
+      message.error(DOMPurify.sanitize(error.message));
+    }
+  };
+  
+  // Handle Stripe checkout validation before proceeding
+  const handleStripeCheckout = () => {
+    const amount = form.getFieldValue("amount");
+    if (!amount || amount <= 0) {
+      message.error("Please enter a valid amount.");
+      return false;
+    }
+    return true;
+  };
+  
+  // Request verification code after reviewing PayPal order
+  const requestVerificationCode = async () => {
+    try {
+      if (!paypalOrderId) {
+        message.error("No PayPal order found. Please try again.");
+        return;
+      }
+      
+      const email = form.getFieldValue("paypalEmail");
+      
+      dispatch(ShowLoading());
+      
+      // Now request the verification code to be sent via email
+      const response = await RequestPaypalVerificationCode({
+        userId: user._id,
+        email,
+        orderID: paypalOrderId
+      });
+      
+      dispatch(HideLoading());
+      
+      if (response.success) {
+        message.success("Verification code sent to your email. Please check and enter it below.");
+      } else {
+        message.error(response.message || "Failed to send verification code");
+      }
+    } catch (error) {
       dispatch(HideLoading());
       message.error(DOMPurify.sanitize(error.message));
     }
@@ -215,11 +273,12 @@ function DepositModal({ showDepositModal, setShowDepositModal, reloadData }) {
               <InputNumber min={1} controls={false} />
             </Form.Item>
             <Form.Item
-              label="PayPal Email"
+              label="User Email for notification"
               name="paypalEmail"
               rules={paymentMethod === 'paypal' ? [{ required: true, message: "Please input your PayPal email" }] : []}
               style={{ display: paymentMethod === 'paypal' ? 'block' : 'none' }}
-            >              <Input />
+            >              
+              <Input />
             </Form.Item>
             <div className="flex items-center gap-2 mb-2">
               <span>Payment Method:</span>
@@ -235,17 +294,32 @@ function DepositModal({ showDepositModal, setShowDepositModal, reloadData }) {
                 onClick={() => setShowDepositModal(false)}
               >
                 Cancel
-              </button>
+              </button>              
               {paymentMethod === 'stripe' && (
-                <StripeCheckout
-                  token={onToken}
-                  currency="USD"
-                  amount={form.getFieldValue("amount") * 100}
-                  shippingAddress
-                  stripeKey="pk_test_51P8KILJu27FG0r8818B58hMz1ejeheU6F84tFUXtmcvkRgc4ofbw2zEejUwPTTE38LoqB4GZZBiCVCieIBjkRTXW00fqLAGsNI"
-                >
-                  <button className="primary-contained-btn">Deposit</button>
-                </StripeCheckout>
+                <div>
+                  <button 
+                    className="primary-contained-btn" 
+                    onClick={() => {
+                      if(handleStripeCheckout()) {
+                        document.getElementById('stripe-checkout-button').click();
+                      }
+                    }}
+                  >
+                    Deposit
+                  </button>
+                  <div style={{display: 'none'}}>
+                    <StripeCheckout
+                      id="stripe-checkout-button"
+                      token={onToken}
+                      currency="USD"
+                      amount={(form.getFieldValue("amount") || 0) * 100}
+                      shippingAddress
+                      stripeKey="pk_test_51P8KILJu27FG0r8818B58hMz1ejeheU6F84tFUXtmcvkRgc4ofbw2zEejUwPTTE38LoqB4GZZBiCVCieIBjkRTXW00fqLAGsNI"
+                    >
+                      <button>Hidden</button>
+                    </StripeCheckout>
+                  </div>
+                </div>
               )}
               {paymentMethod === 'paypal' && (
                 <button
@@ -302,12 +376,22 @@ function DepositModal({ showDepositModal, setShowDepositModal, reloadData }) {
         </Form>
       </Modal>
       <Modal
-        title="Enter PayPal Verification Code"
+        title="Complete PayPal Deposit"
         open={showPaypalVerificationModal}
         onCancel={() => setShowPaypalVerificationModal(false)}
         footer={null}
       >
         <Form layout="vertical">
+          <div className="mb-4">
+            <p>After reviewing your order in PayPal, click the button below to request a verification code:</p>
+            <button
+              className="primary-contained-btn w-full"
+              onClick={requestVerificationCode}
+            >
+              Request Verification Code
+            </button>
+          </div>
+          
           <Form.Item
             label="Verification Code"
             name="paypalVerificationCode"
@@ -316,6 +400,7 @@ function DepositModal({ showDepositModal, setShowDepositModal, reloadData }) {
             <Input
               value={paypalVerificationCode}
               onChange={e => setPaypalVerificationCode(e.target.value)}
+              placeholder="Enter the code sent to your email"
             />
           </Form.Item>
           <div className="flex justify-end gap-1">
@@ -329,7 +414,7 @@ function DepositModal({ showDepositModal, setShowDepositModal, reloadData }) {
               className="primary-contained-btn"
               onClick={handlePaypalVerifyCode}
             >
-              Verify Code
+              Verify & Complete Payment
             </button>
           </div>
         </Form>

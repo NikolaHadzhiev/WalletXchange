@@ -6,9 +6,14 @@ import {
   GetAllUsers,
   RequestUserDelete,
   UpdateUserVerifiedStatus,
+  EditUser
 } from "../../api/users";
+import { Form, Input } from "antd";
+import DOMPurify from "dompurify";
 import { HideLoading, ShowLoading } from "../../state/loaderSlice";
 import PageTitle from "../../components/PageTitle";
+import { LockOutlined, UnlockOutlined } from '@ant-design/icons';
+import { AdminDisable2FA } from "../../api/users";
 
 function Users() {
   const [users, setUsers] = useState([]);
@@ -161,7 +166,12 @@ function Users() {
                   Activate
                 </button>
               )}
-
+              <button
+                className="primary-outlined-btn"
+                onClick={() => openEditModal(record)}
+              >
+                Edit
+              </button>
               <div className="flex gap-1 justify-center">
                 <button
                   className="primary-outlined-btn red"
@@ -211,10 +221,138 @@ function Users() {
     getData();
   }, [getData]);
 
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
+  const [form] = Form.useForm();
+  const [passwordLocked, setPasswordLocked] = useState(true);
+  const [disable2FALocked, setDisable2FALocked] = useState(true);
+
+  const openEditModal = (record) => {
+    setEditingUser(record);
+    setEditModalVisible(true);
+    setPasswordLocked(true); // Always lock password field initially
+    setDisable2FALocked(true); // Always lock 2FA disable button initially
+    form.setFieldsValue(record);
+    form.setFieldValue('password', '');
+  };
+
+  const handleEditUser = async () => {
+    try {
+      const values = form.getFieldsValue();
+      // Sanitize all fields
+      const sanitized = {};
+      Object.keys(values).forEach((key) => {
+        sanitized[key] = DOMPurify.sanitize(values[key]);
+      });
+      sanitized._id = editingUser._id;
+      dispatch(ShowLoading());
+      const response = await EditUser(sanitized);
+      dispatch(HideLoading());
+      if (response.success) {
+        message.success(response.message);
+        setEditModalVisible(false);
+        getData();
+      } else {
+        message.error(response.message);
+      }
+    } catch (error) {
+      dispatch(HideLoading());
+      message.error(error.message);
+    }
+  };
+
   return (
     <>
       <PageTitle title="Users" />
       <Table columns={colums} dataSource={users} className="mt-2" />
+      <Modal
+        title="Edit User"
+        open={editModalVisible}
+        onCancel={() => setEditModalVisible(false)}
+        onOk={handleEditUser}
+        okText="Save"
+      >
+        <Form form={form} layout="vertical">
+          <Form.Item name="firstName" label="First Name" rules={[{ required: true, message: "First name is required" }]}>
+            <Input />
+          </Form.Item>
+          <Form.Item name="lastName" label="Last Name" rules={[{ required: true, message: "Last name is required" }]}>
+            <Input />
+          </Form.Item>
+          <Form.Item name="email" label="Email" rules={[{ required: true, type: "email", message: "Valid email is required" }]}>
+            <Input />
+          </Form.Item>
+          <Form.Item name="phoneNumber" label="Phone Number" rules={[{ required: true, message: "Phone number is required" }]}>
+            <Input />
+          </Form.Item>
+          <Form.Item name="address" label="Address" rules={[{ required: true, message: "Address is required" }]}>
+            <Input />
+          </Form.Item>
+          <Form.Item name="identificationType" label="Identification Type" rules={[{ required: true, message: "Identification type is required" }]}>
+            <Input />
+          </Form.Item>
+          <Form.Item name="identificationNumber" label="Identification Number" rules={[{ required: true, message: "Identification number is required" }]}>
+            <Input />
+          </Form.Item>
+          <Form.Item
+            name="password"
+            label={
+              <span>
+                Password
+                <span
+                  style={{ marginLeft: 8, cursor: 'pointer' }}
+                  onClick={() => setPasswordLocked((prev) => !prev)}
+                  title={passwordLocked ? 'Unlock to edit password' : 'Lock password field'}
+                >
+                  {passwordLocked ? <LockOutlined /> : <UnlockOutlined />}
+                </span>
+              </span>
+            }
+            rules={[
+              { min: 8, message: "Password must be at least 8 characters" },
+              { pattern: /^(|(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,})$/, message: "Password must include letters and numbers" }
+            ]}
+          >
+            <Input.Password
+              autoComplete="new-password"
+              placeholder="Leave blank to keep current password"
+              disabled={passwordLocked}
+            />
+          </Form.Item>
+          <Form.Item>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button
+                type="button"
+                className="primary-outlined-btn"
+                style={{ width: '100%' }}
+                onClick={async () => {
+                  if (!editingUser) return;
+                  dispatch(ShowLoading());
+                  const response = await AdminDisable2FA({ userId: editingUser._id });
+                  dispatch(HideLoading());
+                  if (response.success) {
+                    message.success('2FA disabled for user.');
+                    setEditModalVisible(false);
+                    getData();
+                  } else {
+                    message.error(response.message || 'Failed to disable 2FA.');
+                  }
+                }}
+                disabled={disable2FALocked || !editingUser?.twoFactorEnabled}
+              >
+                Disable 2FA for this user
+              </button>
+              <span
+                style={{ cursor: 'pointer' }}
+                onClick={() => setDisable2FALocked((prev) => !prev)}
+                title={disable2FALocked ? 'Unlock to allow disabling 2FA' : 'Lock 2FA disable button'}
+              >
+                {disable2FALocked ? <LockOutlined /> : <UnlockOutlined />}
+              </span>
+            </span>
+          </Form.Item>
+        </Form>
+      </Modal>
     </>
   );
 }

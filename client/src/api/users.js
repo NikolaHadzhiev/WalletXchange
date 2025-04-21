@@ -95,6 +95,19 @@ export const Disable2FA = async (payload) => {
   }
 };
 
+// Admin disables 2FA for a user
+export const AdminDisable2FA = async (payload) => {
+  try {
+    const { data } = await axiosInstance.post("/api/users/admin-disable-2fa", payload);
+    return data;
+  } catch (error) {
+    if (!error.response) {
+      return { message: "Server error" };
+    }
+    return error.response.data;
+  }
+};
+
 // get user info
 export const GetUserInfo = async () => {
   try {
@@ -176,3 +189,16 @@ export const DeleteUser = async (payload) => {
     return error.response.data
   }
 }
+
+// Edit user (admin only)
+export const EditUser = async (payload) => {
+  try {
+    const { data } = await axiosInstance.post("/api/users/edit-user", payload);
+    return data;
+  } catch (error) {
+    if (!error.response) {
+      return { message: "Server error" };
+    }
+    return error.response.data;
+  }
+};

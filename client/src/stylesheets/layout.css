@@ -61,3 +61,83 @@
 .content {
     padding-top: 20px;
 }
+
+/* Responsive sidebar: move to bottom on small screens */
+@media (max-width: 768px) {
+  .layout {
+    flex-direction: column;
+    padding: 0;
+    height: 100vh;
+    gap: 0;
+  }
+  .sidebar {
+    position: fixed;
+    left: 0;
+    bottom: 0;
+    width: 100vw;
+    height: auto;
+    border-radius: 0;
+    flex-direction: row;
+    z-index: 1000;
+    padding: 0;
+    background-color: var(--primary);
+  }
+  .menu {
+    flex-direction: row;
+    justify-content: space-around;
+    align-items: center;
+    width: 100vw;
+    gap: 0;
+    padding: 0.5rem 0;
+  }
+  .menu-item {
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 8px 0;
+    width: 100%;
+    font-size: 0.9rem;
+  }
+  .body {
+    padding-bottom: 60px; /* space for bottom bar */
+    width: 100vw;
+  }
+}
+
+/* Ensure sidebar is always vertical and full height on large screens */
+@media (min-width: 769px) {
+  .layout {
+    flex-direction: row;
+    min-height: 95vh;
+    height: auto;
+    padding: 15px;
+    gap: 15px;
+  }
+  .sidebar {
+    position: static;
+    width: auto;
+    min-height: 95vh;
+    height: auto;
+    border-radius: 3px;
+    flex-direction: column;
+    display: flex;
+    padding: 15px;
+    background-color: var(--primary);
+    z-index: 1;
+    align-items: center;
+  }
+  .menu {
+    flex-direction: column;
+    gap: 15px;
+    width: 100%;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    flex: 1;
+    display: flex;
+  }
+  .body {
+    padding-bottom: 0;
+    width: 100%;
+  }
+}

@@ -76,3 +76,42 @@ export const VerifyDepositCode = async (payload) => {
     return error.response.data;
   }
 };
+
+// PayPal deposit - create order (without sending verification code)
+export const CreatePaypalOrder = async (payload) => {
+  try {
+    const { data } = await axiosInstance.post("/api/paypal/create-paypal-order", payload);
+    return data;
+  } catch (error) {
+    if (!error.response) {
+      return { message: "Server error" };
+    }
+    return error.response.data;
+  }
+};
+
+// PayPal deposit - request verification code
+export const RequestPaypalVerificationCode = async (payload) => {
+  try {
+    const { data } = await axiosInstance.post("/api/paypal/request-verification", payload);
+    return data;
+  } catch (error) {
+    if (!error.response) {
+      return { message: "Server error" };
+    }
+    return error.response.data;
+  }
+};
+
+// PayPal deposit - verify code and capture payment
+export const VerifyPaypalDeposit = async (payload) => {
+  try {
+    const { data } = await axiosInstance.post("/api/paypal/verify-paypal", payload);
+    return data;
+  } catch (error) {
+    if (!error.response) {
+      return { message: "Server error" };
+    }
+    return error.response.data;
+  }
+};

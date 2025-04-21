@@ -555,4 +555,78 @@ router.post('/disable-2fa', authenticationMiddleware, async (req, res) => {
   }
 });
 
+// ADMIN: Disable 2FA for a user (e.g. lost phone)
+router.post("/admin-disable-2fa", authenticationMiddleware, authorizationMiddleware, async (req, res) => {
+  try {
+    const { userId } = req.body;
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).send({
+        message: 'User not found',
+        success: false,
+      });
+    }
+    user.twoFactorEnabled = false;
+    user.twoFactorSecret = null;
+    await user.save();
+    res.send({
+      message: 'Two-factor authentication disabled by admin',
+      success: true,
+    });
+  } catch (error) {
+    res.status(500).send({
+      message: error.message,
+      success: false,
+    });
+  }
+});
+
+// edit user (admin only)
+router.post("/edit-user", authenticationMiddleware, authorizationMiddleware, [
+  body("_id").isMongoId().withMessage("Invalid user ID"),
+  body("firstName").optional().matches(/^[A-Za-z\s]{1,50}$/).withMessage("First name must be 1-50 letters only").customSanitizer((value) => purify.sanitize(value.trim())),
+  body("lastName").optional().matches(/^[A-Za-z\s]{1,50}$/).withMessage("Last name must be 1-50 letters only").customSanitizer((value) => purify.sanitize(value.trim())),
+  body("email").optional().isEmail().withMessage("Invalid email format").normalizeEmail().customSanitizer((value) => purify.sanitize(value)),
+  body("phoneNumber").optional().matches(/^\d{10,15}$/).withMessage("Phone number must be 10-15 digits").customSanitizer((value) => purify.sanitize(value.trim())),
+  body("address").optional().matches(/^[A-Za-z0-9\s,.'-]{1,100}$/).withMessage("Address must be 1-100 characters long").customSanitizer((value) => purify.sanitize(value.trim())),
+  body("identificationType").optional().isIn(["NATIONAL ID", "PASSPORT", "DRIVING LICENSE", "SOCIAL CARD"]).withMessage("Invalid identification type").customSanitizer((value) => purify.sanitize(value)),
+  body("identificationNumber").optional().matches(/^[A-Za-z0-9]{1,20}$/).withMessage("Identification number must be 1-20 alphanumeric characters").customSanitizer((value) => purify.sanitize(value.trim())),
+  body("password").optional().matches(/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/).withMessage("Password must be at least 8 characters long and include letters and numbers"),
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).send({
+        success: false,
+        message: "Validation failed",
+        errors: errors.array(),
+      });
+    }
+    const { _id, password, ...fields } = req.body;
+    // Remove undefined fields
+    Object.keys(fields).forEach(key => fields[key] === undefined && delete fields[key]);
+    if (password) {
+      const salt = await bcrypt.genSalt(10);
+      fields.password = await bcrypt.hash(password, salt);
+    }
+    const updatedUser = await User.findByIdAndUpdate(_id, fields, { new: true, runValidators: true }).select("-password");
+    if (!updatedUser) {
+      return res.send({
+        message: "User not found",
+        success: false,
+      });
+    }
+    res.send({
+      message: "User updated successfully",
+      data: updatedUser,
+      success: true,
+    });
+  } catch (error) {
+    res.status(500).send({
+      message: error.message,
+      success: false,
+    });
+  }
+});
+
 module.exports = router;

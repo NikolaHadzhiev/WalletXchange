@@ -1,4 +1,4 @@
-import { message, Table } from "antd";
+import { Modal, message, Table } from "antd";
 import { useState, useEffect, useCallback } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import {
@@ -165,14 +165,36 @@ function Users() {
               <div className="flex gap-1 justify-center">
                 <button
                   className="primary-outlined-btn red"
-                  onClick={() => deleteUser(record)}
+                  onClick={() => 
+                      Modal.confirm({
+                        title: "Delete User",
+                        content: "Are you sure you want to delete user?",
+                        okText: "Yes",
+                        cancelText: "No",
+                        onOk: () => {
+                          deleteUser(record)
+                          message.success("User deletion was successfull.");
+                        }
+                    })
+                  }
                 >
                   Delete
                 </button>
                 {record.requestDelete && (
                   <button
                     className="primary-outlined-btn"
-                    onClick={() => cancelDelete(record)}
+                    onClick={() => 
+                      Modal.confirm({
+                        title: "Cancel User Deletion",
+                        content: "Are you sure you want to cancel user deletion?",
+                        okText: "Yes",
+                        cancelText: "No",
+                        onOk: () => {
+                          cancelDelete(record)
+                          message.info("User deletion was cancelled.");
+                        }
+                    })
+                  }
                   >
                     Cancel deletion
                   </button>

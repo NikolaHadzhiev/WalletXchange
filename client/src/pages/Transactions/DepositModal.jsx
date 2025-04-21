@@ -37,7 +37,6 @@ function DepositModal({ showDepositModal, setShowDepositModal, reloadData }) {
       const encryptedData = CryptoJS.AES.encrypt(JSON.stringify({...saltedData, hmac}), key).toString();
       return encodeURIComponent(encryptedData);
     } catch (error) {
-      console.error('Encryption failed');
       return null;
     }
   };
@@ -47,21 +46,21 @@ function DepositModal({ showDepositModal, setShowDepositModal, reloadData }) {
       const key = import.meta.env.VITE_STATE_ENCRYPTION_KEY || 'temp-fallback-key';
       const decrypted = CryptoJS.AES.decrypt(decodeURIComponent(ciphertext), key).toString(CryptoJS.enc.Utf8);
       const data = JSON.parse(decrypted);
-      
-      const { hmac, ...payloadWithoutHmac } = data;
+        const { hmac, ...payloadWithoutHmac } = data;
       const computedHmac = CryptoJS.HmacSHA256(JSON.stringify(payloadWithoutHmac), key).toString();
       
       if (computedHmac !== hmac) {
-        throw new Error('HMAC verification failed');
+        return null;
       }
       
       if (Date.now() - payloadWithoutHmac.timestamp > 3600000) {
-        throw new Error('Data expired');
+        message.error('Paypal deposit data expired');
+        return null;
       }
       
       return payloadWithoutHmac.data;
     } catch (error) {
-      console.error('Decryption/verification failed:', error.message);
+      message.error('Verification failed:', error.message);
       return null;
     }
   };
@@ -75,6 +74,102 @@ function DepositModal({ showDepositModal, setShowDepositModal, reloadData }) {
     }
   }, [user, showDepositModal, form]);
 
+  // Check for pending PayPal deposit when deposit modal opens
+  useEffect(() => {
+    if (showDepositModal && user?._id) {
+      const encryptedPendingData = sessionStorage.getItem('pendingPayPalDeposit');
+      if (encryptedPendingData) {
+        try {
+          // Decrypt the data
+          const decryptedData = decryptData(encryptedPendingData);
+          if (!decryptedData) {
+            sessionStorage.removeItem('pendingPayPalDeposit');
+            return;
+          }
+          
+          const { orderId, amount, uid } = decryptedData;
+          
+          // Only show if for this user (expiration is already checked in decryptData)
+          if (uid === user._id) {
+            setPaypalOrderId(orderId);
+            form.setFieldsValue({ amount });
+            setShowPaypalVerificationModal(true);
+          } else {
+            // Clean up invalid data
+            sessionStorage.removeItem('pendingPayPalDeposit');
+          }
+        } catch (error) {
+          sessionStorage.removeItem('pendingPayPalDeposit');
+        }
+      }
+    }
+  }, [showDepositModal, user, form]);
+
+  // Handle PayPal return with encrypted state and order ID
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const orderIdFromUrl = params.get("token");
+    const encryptedState = params.get("state");
+    
+    if (params.get("paypal") === "success" && orderIdFromUrl) {
+      try {
+        // Decrypt and validate state
+        const decryptedState = decryptData(decodeURIComponent(encryptedState));
+        
+        if (!decryptedState || 
+            decryptedState.uid !== user._id || 
+            Date.now() - decryptedState.ts > 3600000) {
+          message.error("Invalid or expired session. Please try again.");
+          navigate(window.location.pathname, { replace: true });
+          return;
+        }
+
+        // Decrypt and verify stored order ID
+        const encryptedStoredOrderId = sessionStorage.getItem('paypalOrderId');
+        if (!encryptedStoredOrderId) {
+          message.error("No order data found. Please try again.");
+          navigate(window.location.pathname, { replace: true });
+          return;
+        }
+
+        const decryptedOrderId = decryptData(encryptedStoredOrderId);
+        if (!decryptedOrderId || decryptedOrderId !== orderIdFromUrl) {
+          message.error("Order verification failed. Please try again.");
+          navigate(window.location.pathname, { replace: true });
+          return;
+        }
+
+        setPaypalOrderId(orderIdFromUrl);
+        form.setFieldsValue({ amount: decryptedState.amount });
+        message.success("Returned from PayPal. Please request your verification code to complete the deposit.");
+        setShowPaypalVerificationModal(true);
+          // Store pending PayPal deposit in sessionStorage for later recovery (encrypted)
+        const pendingDepositData = {
+          orderId: orderIdFromUrl,
+          amount: decryptedState.amount,
+          ts: Date.now(),
+          uid: user._id
+        };
+
+        const encryptedPendingDeposit = encryptData(pendingDepositData);
+        if (encryptedPendingDeposit) {
+          sessionStorage.setItem('pendingPayPalDeposit', encryptedPendingDeposit);
+        }
+        
+        // Clean up
+        sessionStorage.removeItem('paypalOrderId');
+        navigate(window.location.pathname, { replace: true });
+      } catch (error) {
+        message.error("Error processing PayPal return. Please try again.");
+        navigate(window.location.pathname, { replace: true });
+      }
+    } else if (params.get("paypal") === "cancel") {
+      message.info("PayPal deposit was cancelled.");
+      sessionStorage.removeItem('paypalOrderId');
+      navigate(window.location.pathname, { replace: true });
+    }
+  }, [navigate, form, user._id]);
+  
   const onToken = async (token) => {
     try {
       // Validate the amount before proceeding
@@ -142,7 +237,7 @@ function DepositModal({ showDepositModal, setShowDepositModal, reloadData }) {
       const sanitizedErrorMessage = DOMPurify.sanitize(error.message);
       message.error(sanitizedErrorMessage);
     }
-  };  
+  };
   
   // PayPal handlers (with verification)
   const handlePaypalDeposit = async () => {
@@ -180,11 +275,13 @@ function DepositModal({ showDepositModal, setShowDepositModal, reloadData }) {
         returnUrl,
         cancelUrl
       });
-      
-      // Encrypt the order ID before storing
+        // Encrypt the order ID before storing
       const encryptedOrderId = encryptData(response.orderID);
       if (!encryptedOrderId) {
-        throw new Error('Failed to encrypt order data');
+        setPaypalLoading(false);
+        dispatch(HideLoading());
+        message.error('Failed to encrypt order data. Please try again.');
+        return;
       }
       
       // Store encrypted order ID
@@ -205,60 +302,6 @@ function DepositModal({ showDepositModal, setShowDepositModal, reloadData }) {
       message.error(DOMPurify.sanitize(error.message));
     }
   };
-
-  // Handle PayPal return with encrypted state and order ID
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const orderIdFromUrl = params.get("token");
-    const encryptedState = params.get("state");
-    
-    if (params.get("paypal") === "success" && orderIdFromUrl) {
-      try {
-        // Decrypt and validate state
-        const decryptedState = decryptData(decodeURIComponent(encryptedState));
-        
-        if (!decryptedState || 
-            decryptedState.uid !== user._id || 
-            Date.now() - decryptedState.ts > 3600000) {
-          message.error("Invalid or expired session. Please try again.");
-          navigate(window.location.pathname, { replace: true });
-          return;
-        }
-
-        // Decrypt and verify stored order ID
-        const encryptedStoredOrderId = sessionStorage.getItem('paypalOrderId');
-        if (!encryptedStoredOrderId) {
-          message.error("No order data found. Please try again.");
-          navigate(window.location.pathname, { replace: true });
-          return;
-        }
-
-        const decryptedOrderId = decryptData(encryptedStoredOrderId);
-        if (!decryptedOrderId || decryptedOrderId !== orderIdFromUrl) {
-          message.error("Order verification failed. Please try again.");
-          navigate(window.location.pathname, { replace: true });
-          return;
-        }
-
-        setPaypalOrderId(orderIdFromUrl);
-        form.setFieldsValue({ amount: decryptedState.amount });
-        message.success("Returned from PayPal. Please request your verification code to complete the deposit.");
-        setShowPaypalVerificationModal(true);
-        
-        // Clean up
-        sessionStorage.removeItem('paypalOrderId');
-        navigate(window.location.pathname, { replace: true });
-      } catch (error) {
-        console.error('PayPal return processing error:', error);
-        message.error("Error processing PayPal return. Please try again.");
-        navigate(window.location.pathname, { replace: true });
-      }
-    } else if (params.get("paypal") === "cancel") {
-      message.info("PayPal deposit was cancelled.");
-      sessionStorage.removeItem('paypalOrderId');
-      navigate(window.location.pathname, { replace: true });
-    }
-  }, [navigate, form, user._id]);
 
   // PayPal verification code handling
   const requestVerificationCode = async () => {
@@ -315,11 +358,11 @@ function DepositModal({ showDepositModal, setShowDepositModal, reloadData }) {
       });
 
       dispatch(HideLoading());
-      
       if (response.success) {
         reloadData();
         setShowDepositModal(false);
         setShowPaypalVerificationModal(false);
+        sessionStorage.removeItem('pendingPayPalDeposit');
         message.success("PayPal deposit successful!");
       } else {
         message.error(response.message || "Verification failed. Please check your code and try again.");
@@ -476,8 +519,17 @@ function DepositModal({ showDepositModal, setShowDepositModal, reloadData }) {
             <button
               className="primary-outlined-btn"
               onClick={() => {
-                setShowDepositModal(false);
-                setShowVerificationModal(false);
+                Modal.confirm({
+                  title: "Cancel Deposit",
+                  content: "Are you sure you want to cancel your deposit?",
+                  okText: "Yes",
+                  cancelText: "No",
+                  onOk: () => {
+                    setShowDepositModal(false);
+                    setShowVerificationModal(false);
+                    message.info("Stripe deposit was cancelled.");
+                  }
+                });
               }}
             >
               Cancel
@@ -494,7 +546,10 @@ function DepositModal({ showDepositModal, setShowDepositModal, reloadData }) {
       <Modal
         title="Complete PayPal Deposit"
         open={showPaypalVerificationModal}
-        onCancel={() => setShowPaypalVerificationModal(false)}
+        onCancel={() => {
+          setShowPaypalVerificationModal(false);
+          setShowDepositModal(false);
+        }}
         footer={null}
       >
         <Form layout="vertical">
@@ -518,11 +573,24 @@ function DepositModal({ showDepositModal, setShowDepositModal, reloadData }) {
               onChange={e => setPaypalVerificationCode(e.target.value)}
               placeholder="Enter the code sent to your email"
             />
-          </Form.Item>
+          </Form.Item>  
           <div className="flex justify-end gap-1">
             <button
               className="primary-outlined-btn"
-              onClick={() => setShowPaypalVerificationModal(false)}
+              onClick={() => {
+                Modal.confirm({
+                  title: "Cancel Deposit",
+                  content: "Are you sure you want to cancel your deposit?",
+                  okText: "Yes",
+                  cancelText: "No",
+                  onOk: () => {
+                    setShowPaypalVerificationModal(false);
+                    setShowDepositModal(false);
+                    sessionStorage.removeItem('pendingPayPalDeposit');
+                    message.info("PayPal deposit was cancelled.");
+                  }
+                });
+              }}
             >
               Cancel
             </button>

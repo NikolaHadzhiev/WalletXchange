@@ -109,6 +109,13 @@ function Transactions() {
     getData();
   }, [getData]);    
   
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("paypal") === "success") {
+      setShowDepositModal(true);
+    }
+  }, []);
+
   const handleDateRangeChange = (dates) => {
     // Store the selected date range
     setDateRange(dates);

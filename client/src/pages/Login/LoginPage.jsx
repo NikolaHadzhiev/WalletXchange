@@ -59,7 +59,7 @@ function Login() {
           // Handle lockout
           setIsLockedOut(true);
           setLockoutTime(response.remainingTime);
-          message.error(`Too many attempts. Try again in ${response.remainingTime}s.`);
+          message.error(`Too many attempts.`);
         } else {
           message.error(response.message);
         }
@@ -118,7 +118,7 @@ function Login() {
             type="submit"
             disabled={isLockedOut}
           >
-            {isLockedOut ? `Try again in ${lockoutTime}s` : "Login"}
+            {"Login"}
           </button>
 
           <h1

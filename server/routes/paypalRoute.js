@@ -170,43 +170,103 @@ router.post("/verify-paypal", authenticationMiddleware, async (req, res) => {
     if (!codeRecord) {
       return res.send({ success: false, message: "Invalid or expired verification code" });
     }
-    
-    // Capture PayPal payment
-    const request = new paypal.orders.OrdersCaptureRequest(orderID);
-    request.requestBody({});
-    
-    const capture = await paypalClient.execute(request);
-    if (capture.result.status === "COMPLETED") {
-      // Credit user and record transaction
-      const newTransaction = new Transaction({
-        sender: userId,
-        receiver: userId,
-        amount,
-        type: "Deposit",
-        reference: "PayPal deposit",
-        status: "success",
-      });
-
-      await newTransaction.save();
-      await User.findByIdAndUpdate(userId, { $inc: { balance: amount } });
+      // Capture PayPal payment
+    try {
+      const request = new checkoutSdk.orders.OrdersCaptureRequest(orderID);
+      request.requestBody({});
       
-      // Delete code after use
-      await DepositCode.deleteOne({ _id: codeRecord._id });
-      
-      // Email notification
-      const user = await User.findById(userId);
-      
-      if (user && user.email) {
-        await sendTransactionEmail(
-          user.email,
-          "Deposit Successful - WalletXChange",
-          `Dear ${user.firstName},\n\nYour PayPal deposit was successful.\nTransaction ID: ${newTransaction._id}\nDate: ${new Date().toLocaleString()}\n\nThank you for using WalletXChange!\n\nBest regards,\nThe WalletXChange Team`
-        );
+      const capture = await paypalClient.execute(request);
+      if (capture.result.status === "COMPLETED") {
+        // Credit user and record transaction
+        const newTransaction = new Transaction({
+          sender: userId,
+          receiver: userId,
+          amount,
+          type: "Deposit",
+          reference: `PayPal deposit (Order ID: ${orderID})`,
+          status: "success",
+        });
+  
+        await newTransaction.save();
+        await User.findByIdAndUpdate(userId, { $inc: { balance: amount } });
+        
+        // Delete code after use
+        await DepositCode.deleteOne({ _id: codeRecord._id });
+        
+        // Email notification
+        const user = await User.findById(userId);
+        
+        if (user && user.email) {
+          await sendTransactionEmail(
+            user.email,
+            "Deposit Successful - WalletXChange",
+            `Dear ${user.firstName},\n\nYour PayPal deposit was successful.\nTransaction ID: ${newTransaction._id}\nOrder ID: ${orderID}\nDate: ${new Date().toLocaleString()}\n\nThank you for using WalletXChange!\n\nBest regards,\nThe WalletXChange Team`
+          );
+        }
+  
+        res.send({ 
+          success: true, 
+          message: "Deposit successful",
+          transactionId: newTransaction._id
+        });
+      } else {
+        // Handle different statuses with user-friendly messages
+        const status = capture.result.status;
+        let message = "PayPal payment not completed";
+        
+        switch(status) {
+          case "VOIDED":
+            message = "The PayPal payment was voided. Please try again.";
+            break;
+          case "DECLINED":
+            message = "The PayPal payment was declined. Please check your PayPal account and try again.";
+            break;
+          case "EXPIRED":
+            message = "The PayPal payment has expired. Please create a new deposit.";
+            break;
+          case "PAYER_ACTION_REQUIRED":
+            message = "Additional action is required from your PayPal account to complete this payment.";
+            break;
+          default:
+            message = `PayPal payment status: ${status}. Please try again or contact support.`;
+        }
+        
+        res.send({ success: false, message: message });
       }
+    } catch (captureError) {
 
-      res.send({ success: true, message: "Deposit successful" });
-    } else {
-      res.send({ success: false, message: "PayPal payment not completed" });
+      // Handle specific PayPal API error codes for better user feedback
+      const errorData = captureError.response?.data;
+      let errorMessage = "Failed to process PayPal deposit.";
+      
+      if (errorData?.name) {
+        switch (errorData.name) {
+          case "RESOURCE_NOT_FOUND":
+            errorMessage = "The PayPal order could not be found. It may have expired or been cancelled.";
+            break;
+          case "UNPROCESSABLE_ENTITY":
+            errorMessage = "The PayPal order cannot be processed. It may have already been captured or voided.";
+            break;
+          case "INTERNAL_SERVER_ERROR":
+            errorMessage = "PayPal experienced an internal error. Please try again later.";
+            break;
+          case "INVALID_RESOURCE_ID":
+            errorMessage = "Invalid PayPal order ID. Please create a new deposit.";
+            break;
+          default:
+            errorMessage = errorData.message || errorMessage;
+        }
+      }
+      
+      // Clean up the verification code since the payment failed
+      if (codeRecord) {
+        await DepositCode.deleteOne({ _id: codeRecord._id });
+      }
+      
+      res.send({
+        success: false,
+        message: errorMessage,
+      });
     }
   } catch (error) {
     res.send({
@@ -334,7 +394,9 @@ router.post("/verify-withdraw-paypal", authenticationMiddleware, async (req, res
     if (user.balance < amount) {
       return res.send({ success: false, message: "Insufficient balance" });
     }    // First get an access token for PayPal API
+    
     let accessToken;
+    
     try {
       const tokenResponse = await axios({
         method: 'post',
@@ -357,6 +419,14 @@ router.post("/verify-withdraw-paypal", authenticationMiddleware, async (req, res
         message: "Failed to authenticate with PayPal. Please try again later.",
       });
     }
+      // First, validate if the PayPal email is likely to be valid
+    // This is a basic check - PayPal will do more thorough validation
+    if (!paypalEmail.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+      return res.send({
+        success: false,
+        message: "The PayPal email appears to be invalid. Please check and try again."
+      });
+    }
     
     // Create PayPal payout using direct API call
     const payoutData = {
@@ -377,9 +447,10 @@ router.post("/verify-withdraw-paypal", authenticationMiddleware, async (req, res
           sender_item_id: `withdrawal_${Date.now()}_${userId}`
         }
       ]
-    };
-
+    };    
+    
     let payoutResult;
+    
     try {
       // Execute the PayPal payout
       const payoutResponse = await axios({
@@ -402,6 +473,47 @@ router.post("/verify-withdraw-paypal", authenticationMiddleware, async (req, res
         });
       }
     } catch (payoutError) {
+      // Check for specific PayPal error codes
+      const errorData = payoutError.response?.data;
+      
+      // Handle the case where the PayPal account doesn't exist
+      if (errorData?.name === "RECEIVER_UNREGISTERED" || 
+          (errorData?.details && errorData.details.some(d => 
+            d.issue === "RECEIVER_UNREGISTERED" || 
+            d.description?.includes("not registered")))) {
+        return res.send({
+          success: false,
+          message: "The PayPal email address you provided isn't registered with PayPal or doesn't exist.",
+        });
+      }
+      
+      // Handle other common PayPal errors with user-friendly messages
+      if (errorData?.name) {
+        let errorMessage = "Failed to process PayPal withdrawal.";
+        
+        switch (errorData.name) {
+          case "VALIDATION_ERROR":
+            errorMessage = "There was a validation error with your withdrawal request.";
+            break;
+          case "INSUFFICIENT_FUNDS":
+            errorMessage = "The PayPal account doesn't have sufficient funds to process this withdrawal.";
+            break;
+          case "PERMISSION_DENIED":
+            errorMessage = "Your PayPal account doesn't have permission to send money.";
+            break;
+          case "RATE_LIMIT_REACHED":
+            errorMessage = "Too many withdrawal requests. Please try again later.";
+            break;
+          default:
+            errorMessage = errorData.message || errorMessage;
+        }
+        
+        return res.send({
+          success: false,
+          message: errorMessage
+        });
+      }
+      
       return res.send({
         success: false,
         message: `Failed to process PayPal withdrawal: ${payoutError.response?.data?.message || 'Unknown error'}`,

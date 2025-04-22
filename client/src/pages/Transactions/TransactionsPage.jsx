@@ -43,12 +43,16 @@ function Transactions() {
       title: "Amount",
       dataIndex: "amount",
     },
-    {
+    {      
       key: "type",
       title: "Type",
       dataIndex: "type",
       render: (text, record) => {
         if (record.sender._id === record.receiver._id) {
+          // For same sender and receiver, check reference to distinguish between deposit and withdrawal
+          if (record.reference && record.reference.toLowerCase().includes("withdrawal")) {
+            return "Withdrawal";
+          }
           return "Deposit";
         } else if (record.sender._id === user._id) {
           return "Sent";

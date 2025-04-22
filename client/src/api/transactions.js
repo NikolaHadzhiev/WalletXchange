@@ -115,3 +115,29 @@ export const VerifyPaypalDeposit = async (payload) => {
     return error.response.data;
   }
 };
+
+// PayPal withdrawal - request code
+export const RequestPaypalWithdrawal = async (payload) => {
+  try {
+    const { data } = await axiosInstance.post("/api/paypal/withdraw-paypal", payload);
+    return data;
+  } catch (error) {
+    if (!error.response) {
+      return { message: "Server error" };
+    }
+    return error.response.data;
+  }
+};
+
+// PayPal withdrawal - verify and process
+export const VerifyPaypalWithdrawal = async (payload) => {
+  try {
+    const { data } = await axiosInstance.post("/api/paypal/verify-withdraw-paypal", payload);
+    return data;
+  } catch (error) {
+    if (!error.response) {
+      return { message: "Server error" };
+    }
+    return error.response.data;
+  }
+};

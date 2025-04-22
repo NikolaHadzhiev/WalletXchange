@@ -8,6 +8,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { GetTransactionsOfUser } from "../../api/transactions";
 import moment from "moment";
 import DepositModal from "./DepositModal";
+import WithdrawalModal from "./WithdrawalModal";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { FileOutlined } from '@ant-design/icons';
@@ -15,6 +16,7 @@ import { FileOutlined } from '@ant-design/icons';
 function Transactions() {
   const [showTransferMoneyModal, setShowTransferMoneyModal] = useState(false);
   const [showDepositModal, setShowDepositModal] = useState(false);
+  const [showWithdrawalModal, setShowWithdrawalModal] = useState(false);
   const [data, setData] = useState([]);
   const [filteredData, setFilteredData] = useState([]);
   const [dateRange, setDateRange] = useState([null, null]);
@@ -262,6 +264,13 @@ function Transactions() {
           </button>
 
           <button
+            className="primary-outlined-btn"
+            onClick={() => setShowWithdrawalModal(true)}
+          >
+            Withdraw
+          </button>
+
+          <button
             className="primary-contained-btn"
             onClick={() => setShowTransferMoneyModal(true)}
           >
@@ -302,39 +311,36 @@ function Transactions() {
         pagination={{
           showTotal: (total, range) => (
             <div className="flex items-center">
-              <div className="mr-1">
-                <Button 
-                  className="primary"
-                  type="primary"
-                  style={{ background: "var(--primary)"}}
-                  icon={<FileOutlined />}
-                  onClick={exportToPDF}
-                  size="small"
-                >
-                  Export to PDF
-                </Button>
-              </div>
               <span>{`${range[0]}-${range[1]} of ${total} items`}</span>
             </div>
           ),
         }}
       />
 
-      {showTransferMoneyModal && (
-        <TransferMoneyModal
-          showTransferMoneyModal={showTransferMoneyModal}
-          setShowTransferMoneyModal={setShowTransferMoneyModal}
-          reloadData={getData}
-        />
-      )}
-
-      {showDepositModal && (
-        <DepositModal
-          showDepositModal={showDepositModal}
-          setShowDepositModal={setShowDepositModal}
-          reloadData={getData}
-        />
-      )}
+      <TransferMoneyModal
+        showTransferMoneyModal={showTransferMoneyModal}
+        setShowTransferMoneyModal={setShowTransferMoneyModal}
+        reloadData={getData}
+      />
+      <DepositModal
+        showDepositModal={showDepositModal}
+        setShowDepositModal={setShowDepositModal}
+        reloadData={getData}
+      />
+      <WithdrawalModal
+        showWithdrawalModal={showWithdrawalModal}
+        setShowWithdrawalModal={setShowWithdrawalModal}
+        reloadData={getData}
+      />
+      <div className="flex justify-end m-2">
+        <Button 
+          type="primary" 
+          onClick={exportToPDF}
+          icon={<FileOutlined />}
+        >
+          Export to PDF
+        </Button>
+      </div>
     </>
   );
 }

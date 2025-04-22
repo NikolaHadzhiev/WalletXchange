@@ -5,17 +5,25 @@ const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8", "#82ca9d"
 
 /**
  * Component for rendering category data as a pie chart
- * Ensures all categories with values > 0 are displayed
+ * Accepts a 'type' prop: 'income' or 'outcome'.
+ * Only shows relevant categories for the selected type.
+ * For outcome, includes 'Withdrawal' as a category if present.
  */
-const CategoryPieChart = ({ categoryData = {} }) => {
-  // Transform category data into format needed for pie chart
-  // Explicitly filter for values > 0 to ensure all categories (including Withdrawal) are displayed
+const INCOME_CATEGORIES = [
+  "Salary", "Gifts", "Refunds", "Deposit", "Other"
+];
+const OUTCOME_CATEGORIES = [
+  "Food", "Utilities", "Housing", "Transportation", "Withdrawal", "Other"
+];
+
+const CategoryPieChart = ({ categoryData = {}, type = "income" }) => {
+  // Select relevant categories based on type
+  const allowedCategories = type === "income" ? INCOME_CATEGORIES : OUTCOME_CATEGORIES;
+  
+  // Filter the data based on type and create chart data
   const chartData = Object.entries(categoryData)
-    .filter(([, value]) => value > 0) // Using comma instead of underscore avoids ESLint warning
-    .map(([name, value]) => ({
-      name,
-      value
-    }));
+    .filter(([name, value]) => allowedCategories.includes(name) && value > 0)
+    .map(([name, value]) => ({ name, value }));
 
   return (
     <ResponsiveContainer width="100%" height={210}>

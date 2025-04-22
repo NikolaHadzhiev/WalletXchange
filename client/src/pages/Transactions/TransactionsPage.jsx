@@ -315,6 +315,18 @@ function Transactions() {
         pagination={{
           showTotal: (total, range) => (
             <div className="flex items-center">
+              <div className="mr-1">
+                <Button 
+                  className="primary"
+                  type="primary"
+                  style={{ background: "var(--primary)"}}
+                  icon={<FileOutlined />}
+                  onClick={exportToPDF}
+                  size="small"
+                >
+                  Export to PDF
+                </Button>
+              </div>
               <span>{`${range[0]}-${range[1]} of ${total} items`}</span>
             </div>
           ),
@@ -336,15 +348,6 @@ function Transactions() {
         setShowWithdrawalModal={setShowWithdrawalModal}
         reloadData={getData}
       />
-      <div className="flex justify-end m-2">
-        <Button 
-          type="primary" 
-          onClick={exportToPDF}
-          icon={<FileOutlined />}
-        >
-          Export to PDF
-        </Button>
-      </div>
     </>
   );
 }

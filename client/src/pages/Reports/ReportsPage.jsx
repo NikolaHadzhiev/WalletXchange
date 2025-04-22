@@ -605,13 +605,15 @@ function ReportsPage() {
           </AreaChart>
         </ResponsiveContainer>
       </Card>
-      <Row gutter={16} className="mt-4">        <Col span={12}>
+      <Row gutter={16} className="mt-4">
+        <Col span={12}>
           <Card title="Expense Categories">
-            <CategoryPieChart categoryData={categoryData.expenseCategories} />
+            <CategoryPieChart type="outcome" categoryData={categoryData.expenseCategories} />
           </Card>
-        </Col>        <Col span={12}>          
+        </Col>
+        <Col span={12}>          
           <Card title="Income Categories">
-            <CategoryPieChart categoryData={categoryData.incomeCategories} />
+            <CategoryPieChart type="income" categoryData={categoryData.incomeCategories} />
           </Card>
         </Col>
       </Row>

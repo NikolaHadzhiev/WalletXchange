@@ -248,8 +248,6 @@ router.post("/get-monthly-data", authenticationMiddleware, async (req, res) => {
 router.post("/get-category-summary", authenticationMiddleware, async (req, res) => {
   try {
     const { userId, fromDate, toDate } = req.body;
-    
-    // Validate userId
     if (!mongoose.isValidObjectId(userId)) {
       return res.send({
         message: "Invalid user ID",
@@ -257,7 +255,6 @@ router.post("/get-category-summary", authenticationMiddleware, async (req, res) 
         success: false,
       });
     }
-
     // Build date filter if provided
     const dateFilter = {};
     if (fromDate && toDate) {
@@ -270,33 +267,21 @@ router.post("/get-category-summary", authenticationMiddleware, async (req, res) 
     } else if (toDate) {
       dateFilter.createdAt = { $lte: new Date(toDate) };
     }
-
-    // Get all transactions for the user (both sent and received)
-    const sentTransactions = await Transaction.find({
-      sender: userId,
-      ...dateFilter
-    }).populate("receiver", "firstName lastName");
-
-    const receivedTransactions = await Transaction.find({
-      receiver: userId,
-      ...dateFilter
-    }).populate("sender", "firstName lastName");
-
-    // Analyze references for categorization (simple version)
+    // Query for all relevant transactions
+    const [
+      sentTransactions, // expenses (to others)
+      receivedTransactions, // income (from others)
+      selfTransactions // self-transfers (deposits/withdrawals)
+    ] = await Promise.all([
+      Transaction.find({ sender: userId, receiver: { $ne: userId }, ...dateFilter }),
+      Transaction.find({ receiver: userId, sender: { $ne: userId }, ...dateFilter }),
+      Transaction.find({ sender: userId, receiver: userId, ...dateFilter })
+    ]);
+    // Categorize expenses
     const expenseCategories = {};
-    const incomeCategories = {};    // Process sent transactions (expenses)
     sentTransactions.forEach(transaction => {
-      // Skip self-transactions for withdrawal (these are handled separately)
-      if (transaction.sender.toString() === transaction.receiver.toString() && 
-          transaction.reference && 
-          transaction.reference.toLowerCase().includes("withdrawal")) {
-        return;
-      }
-
-      const reference = transaction.reference.toLowerCase();
+      const reference = transaction.reference ? transaction.reference.toLowerCase() : "";
       let category = "Other";
-      
-      // Simple categorization based on keywords
       if (reference.includes("food") || reference.includes("grocery") || reference.includes("restaurant")) {
         category = "Food";
       } else if (reference.includes("bill") || reference.includes("utility")) {
@@ -306,34 +291,19 @@ router.post("/get-category-summary", authenticationMiddleware, async (req, res) 
       } else if (reference.includes("transport") || reference.includes("gas") || reference.includes("fuel")) {
         category = "Transportation";
       }
-      
       expenseCategories[category] = (expenseCategories[category] || 0) + transaction.amount;
     });
-
-    // Add withdrawal transactions to expense categories
-    // These have the same sender and receiver and contain "withdrawal" in the reference
-    sentTransactions.forEach(transaction => {
-      if (transaction.sender.toString() === transaction.receiver.toString() && 
-          transaction.reference && 
-          transaction.reference.toLowerCase().includes("withdrawal")) {
-        const category = "Withdrawal";
-        expenseCategories[category] = (expenseCategories[category] || 0) + transaction.amount;
+    // Categorize withdrawals (self-transfers with 'withdrawal' in reference)
+    selfTransactions.forEach(transaction => {
+      if (transaction.reference && transaction.reference.toLowerCase().includes("withdrawal")) {
+        expenseCategories["Withdrawal"] = (expenseCategories["Withdrawal"] || 0) + transaction.amount;
       }
     });
-
-    // Process received transactions (income)
+    // Categorize income
+    const incomeCategories = {};
     receivedTransactions.forEach(transaction => {
-      // Skip self-transactions for withdrawal (these are handled as expenses)
-      if (transaction.sender.toString() === transaction.receiver.toString() && 
-          transaction.reference && 
-          transaction.reference.toLowerCase().includes("withdrawal")) {
-        return;
-      }
-
-      const reference = transaction.reference.toLowerCase();
+      const reference = transaction.reference ? transaction.reference.toLowerCase() : "";
       let category = "Other";
-      
-      // Simple categorization based on keywords
       if (reference.includes("salary") || reference.includes("wage")) {
         category = "Salary";
       } else if (reference.includes("gift")) {
@@ -343,10 +313,25 @@ router.post("/get-category-summary", authenticationMiddleware, async (req, res) 
       } else if (reference.includes("deposit")) {
         category = "Deposit";
       }
-      
       incomeCategories[category] = (incomeCategories[category] || 0) + transaction.amount;
     });
-
+    // Categorize deposits (self-transfers without 'withdrawal' in reference)
+    selfTransactions.forEach(transaction => {
+      if (!transaction.reference || !transaction.reference.toLowerCase().includes("withdrawal")) {
+        incomeCategories["Deposit"] = (incomeCategories["Deposit"] || 0) + transaction.amount;
+      }
+    });
+    // Remove zero/undefined categories
+    Object.keys(expenseCategories).forEach(key => {
+      if (!expenseCategories[key] || expenseCategories[key] <= 0) {
+        delete expenseCategories[key];
+      }
+    });
+    Object.keys(incomeCategories).forEach(key => {
+      if (!incomeCategories[key] || incomeCategories[key] <= 0) {
+        delete incomeCategories[key];
+      }
+    });
     res.send({
       message: "Category summary fetched",
       data: {

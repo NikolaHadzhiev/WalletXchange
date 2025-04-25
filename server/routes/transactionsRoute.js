@@ -373,74 +373,98 @@ router.post("/verify-deposit", authenticationMiddleware, async (req, res) => {
         success: false,
         message: "Invalid or expired verification code",
       });
-    }
-
-    // Create a customer on Stripe
-    const customer = await stripe.customers.create({
-      email: codeRecord.email,
-      source: codeRecord.stripeId,
-    });
-
-    // Proceed with Stripe deposit
-    const charge = await stripe.charges.create({
-      amount: amount * 100,
-      currency: "usd",
-      customer: customer.id,
-      receipt_email: customer.email,
-      description: "Deposited to WALLETXCHANGE",
-    });
-
-    if (charge.status === "succeeded") {
-      const newTransaction = new Transaction({
-        sender: userId,
-        receiver: userId,
-        amount,
-        type: "Deposit",
-        reference: "Stripe deposit",
-        status: "success",
+    }    // Use the newer PaymentIntent API instead of directly creating a charge
+    try {      // Create a payment intent with the payment method
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amount * 100,
+        currency: "usd",
+        payment_method: codeRecord.stripeId,
+        receipt_email: codeRecord.email,
+        description: "Deposited to WALLETXCHANGE",
+        confirm: true,  // Confirm the payment immediately
+        confirmation_method: 'automatic',
+        use_stripe_sdk: false, // No need for additional customer action
+        return_url: `${process.env.cors_url || 'http://localhost:5173'}/transactions`, // Return URL after payment completion
       });
 
-      await newTransaction.save();
-      await User.findByIdAndUpdate(userId, {
-        $inc: { balance: amount },
-      });
+      // Check if the payment was successful (succeeded or requires_capture)
+      if (paymentIntent.status === "succeeded") {
+        const newTransaction = new Transaction({
+          sender: userId,
+          receiver: userId,
+          amount,
+          type: "Deposit",
+          reference: "Stripe deposit",
+          status: "success",
+        });
 
-      // Delete the verification code after successful deposit
-      await DepositCode.deleteOne({ _id: codeRecord._id });
+        await newTransaction.save();
+        await User.findByIdAndUpdate(userId, {
+          $inc: { balance: amount },
+        });
 
-      // Send confirmation email for successful deposit
-      const user = await User.findById(userId);
-      if (user && user.email) {
-        await sendTransactionEmail(
-          user.email,
-          "Deposit Successful - WalletXChange",
-          `Dear ${user.firstName},
+        // Delete the verification code after successful deposit
+        await DepositCode.deleteOne({ _id: codeRecord._id });
 
-            We're pleased to confirm that your deposit has been completed successfully.
+        // Send confirmation email for successful deposit
+        const user = await User.findById(userId);
+        if (user && user.email) {
+          await sendTransactionEmail(
+            user.email,
+            "Deposit Successful - WalletXChange",
+            `Dear ${user.firstName},
 
-            Deposit details:
-            - Transaction ID: ${newTransaction._id}
-            - Date: ${new Date().toLocaleString()}
+              We're pleased to confirm that your deposit has been completed successfully.
 
-            Thank you for using WalletXChange!
+              Deposit details:
+              - Transaction ID: ${newTransaction._id}
+              - Date: ${new Date().toLocaleString()}
 
-            Best regards,
-            The WalletXChange Team`
-        );
+              Thank you for using WalletXChange!
+
+              Best regards,
+              The WalletXChange Team`
+          );
+        }
+
+        return res.send({
+          success: true,
+          message: "Deposit successful",
+        });      
+      
+      } else {
+        // Handle non-successful payment intent status
+        return res.send({
+          success: false,
+          message: `Payment failed: ${paymentIntent.last_payment_error?.message || paymentIntent.status}`,
+        });
+      }    
+    } catch (stripeError) {
+      // Handle different Stripe error types with appropriate messages
+      let errorMessage = "Payment failed.";
+      
+      if (stripeError.type === 'StripeCardError') {
+        // Card declined or other card errors
+        errorMessage = stripeError.message || "Your card was declined.";
+      } else if (stripeError.type === 'StripeInvalidRequestError') {
+        errorMessage = "Invalid payment information.";
+      } else if (stripeError.type === 'StripeRateLimitError') {
+        errorMessage = "Too many payment attempts. Please try again later.";
+      } else if (stripeError.type === 'StripeAPIError') {
+        errorMessage = "Payment system error. Please try again later.";
       }
 
-      res.send({
-        success: true,
-        message: "Deposit successful",
-      });
-    } else {
-      res.send({
+      // Delete the verification code since payment failed
+      await DepositCode.deleteOne({ _id: codeRecord._id });
+      
+      return res.send({
+        message: "Error verifying deposit",
+        data: errorMessage,
         success: false,
-        message: "Transaction failed",
       });
     }
   } catch (error) {
-    res.send({
+    return res.send({
       message: "Error verifying deposit",
       data: purify.sanitize(error.message),
       success: false,

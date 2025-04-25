@@ -2,16 +2,14 @@ import { useState, useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { Col, Row, Card, DatePicker, Statistic, Select, Space, message } from "antd";
 import { 
-  AreaChart, Area, PieChart, Pie, XAxis, YAxis, CartesianGrid, 
-  Tooltip, Legend, ResponsiveContainer, Cell
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, 
+  Tooltip, Legend, ResponsiveContainer
 } from "recharts";
+import CategoryPieChart from "./CategoryPieChart";
 import moment from "moment";
 import PageTitle from "../../components/PageTitle";
 import { GetTransactionSummary, GetMonthlyData, GetCategorySummary } from "../../api/reports";
 import { HideLoading, ShowLoading } from "../../state/loaderSlice";
-
-// Color palette for charts
-const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8"];
 
 function ReportsPage() {
   const { user } = useSelector((state) => state.users);
@@ -188,12 +186,12 @@ function ReportsPage() {
       message.error("Something went wrong while fetching category data");
     }
   };
-
   // Load data on component mount
   useEffect(() => {
     fetchSummaryData();
     fetchMonthlyData();
     fetchCategoryData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Handle date range change
@@ -415,33 +413,7 @@ function ReportsPage() {
       message.error("Something went wrong while resetting filters");
     }
   };
-
-  // Transform category data for pie charts
-  const transformCategoryData = (categoryObj) => {
-    return Object.entries(categoryObj || {}).map(([name, value]) => ({ 
-      name, 
-      value 
-    }));
-  };
-
-  // Normalize category data to match summary totals
-  const normalizeAndTransformCategoryData = (categoryObj, totalAmount) => {
-    const transformedData = transformCategoryData(categoryObj);
-    if (!transformedData || transformedData.length === 0) return transformedData;
-    
-    // Calculate the sum of all category values
-    const sum = transformedData.reduce((acc, item) => acc + item.value, 0);
-    
-    // If sum differs from totalAmount, normalize each value
-    if (sum !== totalAmount && sum > 0) {
-      return transformedData.map(item => ({
-        name: item.name,
-        value: (item.value / sum) * totalAmount
-      }));
-    }
-    
-    return transformedData;
-  };
+  // No longer needed as we're using CategoryPieChart component
 
   // Available years for dropdown selection
   const yearOptions = Array.from({ length: 5 }, (_, i) => {
@@ -634,52 +606,14 @@ function ReportsPage() {
         </ResponsiveContainer>
       </Card>
       <Row gutter={16} className="mt-4">
-        <Col span={12}>          
-        <Card title="Expense Categories">
-            <ResponsiveContainer width="100%" height={210}>
-              <PieChart>
-                <Pie
-                  data={normalizeAndTransformCategoryData(categoryData.expenseCategories, summary.totalExpenses)}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="value"
-                  label={({name, percent}) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                >
-                  {normalizeAndTransformCategoryData(categoryData.expenseCategories, summary.totalExpenses).map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(value) => `$${value.toFixed(2)}`} />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
+        <Col span={12}>
+          <Card title="Expense Categories">
+            <CategoryPieChart type="outcome" categoryData={categoryData.expenseCategories} />
           </Card>
         </Col>
         <Col span={12}>          
-        <Card title="Income Categories">
-            <ResponsiveContainer width="100%" height={210}>
-              <PieChart>
-                <Pie
-                  data={normalizeAndTransformCategoryData(categoryData.incomeCategories, summary.totalIncome)}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="value"
-                  label={({name, percent}) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                >
-                  {normalizeAndTransformCategoryData(categoryData.incomeCategories, summary.totalIncome).map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(value) => `$${value.toFixed(2)}`} />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
+          <Card title="Income Categories">
+            <CategoryPieChart type="income" categoryData={categoryData.incomeCategories} />
           </Card>
         </Col>
       </Row>

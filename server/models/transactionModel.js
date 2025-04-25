@@ -19,7 +19,7 @@ const transactionSchema = new mongoose.Schema(
 
     reference: {
       type: String,
-      required: true,
+      required: false,
     },
     status: {
       type: String,

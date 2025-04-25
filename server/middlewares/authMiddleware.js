@@ -17,7 +17,7 @@ module.exports.authenticationMiddleware = function (req, res, next) {
       next();
     } catch (error) {
       return res.status(401).send({
-        message: error.message,
+        message: "Your session has been expired. Please login again.",
         success: false,
       });
     }

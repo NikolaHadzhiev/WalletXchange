@@ -161,7 +161,11 @@ function DepositModal({ showDepositModal, setShowDepositModal, reloadData }) {
         setShowVerificationModal(false); // Close the verification modal
         message.success("Deposit successful!");
       } else {
-        message.error("Verification failed. Please check your code and try again.");
+        // Use the error detail from the data field if available
+        const errorMessage = response.data 
+          ? DOMPurify.sanitize(response.data) 
+          : DOMPurify.sanitize(response.message || "Verification failed. Please check your code and try again.");
+        message.error(errorMessage);
       }
     } catch (error) {
       dispatch(HideLoading());

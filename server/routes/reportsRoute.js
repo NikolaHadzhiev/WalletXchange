@@ -50,12 +50,21 @@ router.post("/get-transaction-summary", authenticationMiddleware, async (req, re
       receiver: userId,
       ...dateFilter
     });    
+      // Identify withdrawals (self-transactions that have 'withdrawal' in the reference)
+    const withdrawalTransactions = depositTransactions.filter(
+      transaction => transaction.reference && transaction.reference.toLowerCase().includes('withdrawal')
+    );
+    
+    // Identify true deposits (self-transactions that don't have 'withdrawal' in the reference)
+    const trueDepositTransactions = depositTransactions.filter(
+      transaction => !transaction.reference || !transaction.reference.toLowerCase().includes('withdrawal')
+    );
     
     // Calculate totals
     const totalIncome = receivedTransactions.reduce(
       (total, transaction) => total + transaction.amount,
       0
-    ) + depositTransactions.reduce(
+    ) + trueDepositTransactions.reduce(
       (total, transaction) => total + transaction.amount,
       0
     );
@@ -63,12 +72,16 @@ router.post("/get-transaction-summary", authenticationMiddleware, async (req, re
     const totalExpenses = sentTransactions.reduce(
       (total, transaction) => total + transaction.amount,
       0
+    ) + withdrawalTransactions.reduce(
+      (total, transaction) => total + transaction.amount,
+      0
     );
     
     const netFlow = totalIncome - totalExpenses;    // Process transaction counts properly
     const regularIncomingCount = receivedTransactions.length;  // Regular transfers received
-    const depositCount = depositTransactions.length;  // Self-deposits
-    const outgoingCount = sentTransactions.length;  // Money sent to others
+    const depositCount = trueDepositTransactions.length;  // Self-deposits (excluding withdrawals)
+    const withdrawalCount = withdrawalTransactions.length;  // Withdrawals
+    const outgoingCount = sentTransactions.length + withdrawalCount;  // Money sent to others + withdrawals
 
     // Calculate total incoming count by combining regular incoming transfers and deposits
     const totalIncomingCount = regularIncomingCount + depositCount;
@@ -137,13 +150,32 @@ router.post("/get-monthly-data", authenticationMiddleware, async (req, res) => {
       },
       { $sort: { _id: 1 } }
     ]);
-    
-    // Aggregate deposits by month (self-transfers)
+      // Aggregate actual deposits by month (self-transfers that don't include "withdrawal" in reference)
     const monthlyDeposits = await Transaction.aggregate([
       {
         $match: {
           receiver: new mongoose.Types.ObjectId(userId),
-          sender: new mongoose.Types.ObjectId(userId), // Only include self-transfers (deposits)
+          sender: new mongoose.Types.ObjectId(userId), // Only include self-transfers
+          reference: { $not: /withdrawal/i }, // Exclude withdrawals
+          createdAt: { $gte: startDate, $lte: endDate }
+        }
+      },
+      {
+        $group: {
+          _id: { $month: "$createdAt" },
+          total: { $sum: "$amount" }
+        }
+      },
+      { $sort: { _id: 1 } }
+    ]);
+    
+    // Aggregate withdrawals by month (self-transfers that include "withdrawal" in reference)
+    const monthlyWithdrawals = await Transaction.aggregate([
+      {
+        $match: {
+          receiver: new mongoose.Types.ObjectId(userId),
+          sender: new mongoose.Types.ObjectId(userId),
+          reference: { $regex: /withdrawal/i }, // Only include withdrawals
           createdAt: { $gte: startDate, $lte: endDate }
         }
       },
@@ -173,12 +205,12 @@ router.post("/get-monthly-data", authenticationMiddleware, async (req, res) => {
       },
       { $sort: { _id: 1 } }
     ]);    
-    
-    // Format the data for all 12 months
+      // Format the data for all 12 months
     const formattedData = Array.from({ length: 12 }, (_, i) => {
       const month = i + 1;
       const incomeEntry = monthlyIncome.find(item => item._id === month);
       const depositEntry = monthlyDeposits.find(item => item._id === month);
+      const withdrawalEntry = monthlyWithdrawals.find(item => item._id === month);
       const expenseEntry = monthlyExpenses.find(item => item._id === month);
       
       // Calculate total income by adding regular income and deposits
@@ -186,10 +218,15 @@ router.post("/get-monthly-data", authenticationMiddleware, async (req, res) => {
       const depositIncome = depositEntry ? depositEntry.total : 0;
       const totalIncome = regularIncome + depositIncome;
       
+      // Calculate total expenses by adding regular expenses and withdrawals
+      const regularExpenses = expenseEntry ? expenseEntry.total : 0;
+      const withdrawalExpenses = withdrawalEntry ? withdrawalEntry.total : 0;
+      const totalExpenses = regularExpenses + withdrawalExpenses;
+      
       return {
         month,
         income: totalIncome,
-        expenses: expenseEntry ? expenseEntry.total : 0
+        expenses: totalExpenses
       };
     });
 
@@ -211,8 +248,6 @@ router.post("/get-monthly-data", authenticationMiddleware, async (req, res) => {
 router.post("/get-category-summary", authenticationMiddleware, async (req, res) => {
   try {
     const { userId, fromDate, toDate } = req.body;
-    
-    // Validate userId
     if (!mongoose.isValidObjectId(userId)) {
       return res.send({
         message: "Invalid user ID",
@@ -220,7 +255,6 @@ router.post("/get-category-summary", authenticationMiddleware, async (req, res) 
         success: false,
       });
     }
-
     // Build date filter if provided
     const dateFilter = {};
     if (fromDate && toDate) {
@@ -233,28 +267,21 @@ router.post("/get-category-summary", authenticationMiddleware, async (req, res) 
     } else if (toDate) {
       dateFilter.createdAt = { $lte: new Date(toDate) };
     }
-
-    // Get all transactions for the user (both sent and received)
-    const sentTransactions = await Transaction.find({
-      sender: userId,
-      ...dateFilter
-    }).populate("receiver", "firstName lastName");
-
-    const receivedTransactions = await Transaction.find({
-      receiver: userId,
-      ...dateFilter
-    }).populate("sender", "firstName lastName");
-
-    // Analyze references for categorization (simple version)
+    // Query for all relevant transactions
+    const [
+      sentTransactions, // expenses (to others)
+      receivedTransactions, // income (from others)
+      selfTransactions // self-transfers (deposits/withdrawals)
+    ] = await Promise.all([
+      Transaction.find({ sender: userId, receiver: { $ne: userId }, ...dateFilter }),
+      Transaction.find({ receiver: userId, sender: { $ne: userId }, ...dateFilter }),
+      Transaction.find({ sender: userId, receiver: userId, ...dateFilter })
+    ]);
+    // Categorize expenses
     const expenseCategories = {};
-    const incomeCategories = {};
-
-    // Process sent transactions (expenses)
     sentTransactions.forEach(transaction => {
-      const reference = transaction.reference.toLowerCase();
+      const reference = transaction.reference ? transaction.reference.toLowerCase() : "";
       let category = "Other";
-      
-      // Simple categorization based on keywords
       if (reference.includes("food") || reference.includes("grocery") || reference.includes("restaurant")) {
         category = "Food";
       } else if (reference.includes("bill") || reference.includes("utility")) {
@@ -264,16 +291,19 @@ router.post("/get-category-summary", authenticationMiddleware, async (req, res) 
       } else if (reference.includes("transport") || reference.includes("gas") || reference.includes("fuel")) {
         category = "Transportation";
       }
-      
       expenseCategories[category] = (expenseCategories[category] || 0) + transaction.amount;
     });
-
-    // Process received transactions (income)
+    // Categorize withdrawals (self-transfers with 'withdrawal' in reference)
+    selfTransactions.forEach(transaction => {
+      if (transaction.reference && transaction.reference.toLowerCase().includes("withdrawal")) {
+        expenseCategories["Withdrawal"] = (expenseCategories["Withdrawal"] || 0) + transaction.amount;
+      }
+    });
+    // Categorize income
+    const incomeCategories = {};
     receivedTransactions.forEach(transaction => {
-      const reference = transaction.reference.toLowerCase();
+      const reference = transaction.reference ? transaction.reference.toLowerCase() : "";
       let category = "Other";
-      
-      // Simple categorization based on keywords
       if (reference.includes("salary") || reference.includes("wage")) {
         category = "Salary";
       } else if (reference.includes("gift")) {
@@ -283,10 +313,25 @@ router.post("/get-category-summary", authenticationMiddleware, async (req, res) 
       } else if (reference.includes("deposit")) {
         category = "Deposit";
       }
-      
       incomeCategories[category] = (incomeCategories[category] || 0) + transaction.amount;
     });
-
+    // Categorize deposits (self-transfers without 'withdrawal' in reference)
+    selfTransactions.forEach(transaction => {
+      if (!transaction.reference || !transaction.reference.toLowerCase().includes("withdrawal")) {
+        incomeCategories["Deposit"] = (incomeCategories["Deposit"] || 0) + transaction.amount;
+      }
+    });
+    // Remove zero/undefined categories
+    Object.keys(expenseCategories).forEach(key => {
+      if (!expenseCategories[key] || expenseCategories[key] <= 0) {
+        delete expenseCategories[key];
+      }
+    });
+    Object.keys(incomeCategories).forEach(key => {
+      if (!incomeCategories[key] || incomeCategories[key] <= 0) {
+        delete incomeCategories[key];
+      }
+    });
     res.send({
       message: "Category summary fetched",
       data: {

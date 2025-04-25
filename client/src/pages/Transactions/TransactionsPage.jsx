@@ -8,6 +8,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { GetTransactionsOfUser } from "../../api/transactions";
 import moment from "moment";
 import DepositModal from "./DepositModal";
+import WithdrawalModal from "./WithdrawalModal";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { FileOutlined } from '@ant-design/icons';
@@ -15,6 +16,7 @@ import { FileOutlined } from '@ant-design/icons';
 function Transactions() {
   const [showTransferMoneyModal, setShowTransferMoneyModal] = useState(false);
   const [showDepositModal, setShowDepositModal] = useState(false);
+  const [showWithdrawalModal, setShowWithdrawalModal] = useState(false);
   const [data, setData] = useState([]);
   const [filteredData, setFilteredData] = useState([]);
   const [dateRange, setDateRange] = useState([null, null]);
@@ -41,12 +43,16 @@ function Transactions() {
       title: "Amount",
       dataIndex: "amount",
     },
-    {
+    {      
       key: "type",
       title: "Type",
       dataIndex: "type",
       render: (text, record) => {
         if (record.sender._id === record.receiver._id) {
+          // For same sender and receiver, check reference to distinguish between deposit and withdrawal
+          if (record.reference && record.reference.toLowerCase().includes("withdrawal")) {
+            return "Withdrawal";
+          }
           return "Deposit";
         } else if (record.sender._id === user._id) {
           return "Sent";
@@ -262,6 +268,13 @@ function Transactions() {
           </button>
 
           <button
+            className="primary-outlined-btn"
+            onClick={() => setShowWithdrawalModal(true)}
+          >
+            Withdraw
+          </button>
+
+          <button
             className="primary-contained-btn"
             onClick={() => setShowTransferMoneyModal(true)}
           >
@@ -320,21 +333,21 @@ function Transactions() {
         }}
       />
 
-      {showTransferMoneyModal && (
-        <TransferMoneyModal
-          showTransferMoneyModal={showTransferMoneyModal}
-          setShowTransferMoneyModal={setShowTransferMoneyModal}
-          reloadData={getData}
-        />
-      )}
-
-      {showDepositModal && (
-        <DepositModal
-          showDepositModal={showDepositModal}
-          setShowDepositModal={setShowDepositModal}
-          reloadData={getData}
-        />
-      )}
+      <TransferMoneyModal
+        showTransferMoneyModal={showTransferMoneyModal}
+        setShowTransferMoneyModal={setShowTransferMoneyModal}
+        reloadData={getData}
+      />
+      <DepositModal
+        showDepositModal={showDepositModal}
+        setShowDepositModal={setShowDepositModal}
+        reloadData={getData}
+      />
+      <WithdrawalModal
+        showWithdrawalModal={showWithdrawalModal}
+        setShowWithdrawalModal={setShowWithdrawalModal}
+        reloadData={getData}
+      />
     </>
   );
 }

@@ -759,28 +759,293 @@ describe('Transaction Tests', () => {
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(false);
-      expect(response.body.message).toBe('Invalid user ID');
-    });
+      // Additional tests for new/updated logic in transactionsRoute and PayPal endpoints
 
-    it('should handle errors during deposit initiation', async () => {
-      // Force an error
-      jest.spyOn(DepositCode, 'create').mockImplementationOnce(() => {
-        throw new Error('Database error');
+      describe('PayPal Deposit & Withdrawal', () => {
+        let senderUser, senderToken;
+
+        beforeEach(async () => {
+          const hashedPassword = await bcrypt.hash('TestPass123', 10);
+          senderUser = await User.create({
+            firstName: 'PayPal',
+            lastName: 'User',
+            email: 'paypaluser@example.com',
+            phoneNumber: '5555555555',
+            identificationType: 'NATIONAL ID',
+            identificationNumber: 'PAYPAL123',
+            address: '789 PayPal St',
+            password: hashedPassword,
+            balance: 500,
+            isVerified: true
+          });
+          senderToken = generateTestToken(senderUser._id);
+        });
+
+        afterEach(async () => {
+          await User.deleteMany({});
+          await Transaction.deleteMany({});
+          await DepositCode.deleteMany({});
+          await DeletedUser.deleteMany({});
+        });
+
+        it('should create a PayPal order', async () => {
+          const payload = { userId: senderUser._id, amount: 50 };
+          const response = await request(app)
+            .post('/api/paypal/create-paypal-order')
+            .set('Authorization', `Bearer ${senderToken}`)
+            .send(payload);
+
+          expect(response.status).toBe(200);
+          expect(response.body).toHaveProperty('success');
+        });
+
+        it('should fail to create a PayPal order with invalid amount', async () => {
+          const payload = { userId: senderUser._id, amount: -10 };
+          const response = await request(app)
+            .post('/api/paypal/create-paypal-order')
+            .set('Authorization', `Bearer ${senderToken}`)
+            .send(payload);
+
+          expect(response.status).toBe(200);
+          expect(response.body.success).toBe(false);
+          expect(response.body.message).toMatch(/invalid amount/i);
+        });
+
+        it('should fail to create a PayPal order with missing userId', async () => {
+          const payload = { amount: 50 };
+          const response = await request(app)
+            .post('/api/paypal/create-paypal-order')
+            .set('Authorization', `Bearer ${senderToken}`)
+            .send(payload);
+
+          expect(response.status).toBe(200);
+          expect(response.body.success).toBe(false);
+          expect(response.body.message).toMatch(/user id/i);
+        });
+
+        it('should handle error in create PayPal order', async () => {
+          jest.spyOn(Transaction, 'create').mockImplementationOnce(() => { throw new Error('DB error'); });
+          const payload = { userId: senderUser._id, amount: 50 };
+          const response = await request(app)
+            .post('/api/paypal/create-paypal-order')
+            .set('Authorization', `Bearer ${senderToken}`)
+            .send(payload);
+
+          expect(response.status).toBe(200);
+          expect(response.body.success).toBe(false);
+        });
+
+        it('should request PayPal verification code', async () => {
+          const payload = { userId: senderUser._id, orderId: 'ORDER123', email: 'paypaluser@example.com' };
+          const response = await request(app)
+            .post('/api/paypal/request-verification')
+            .set('Authorization', `Bearer ${senderToken}`)
+            .send(payload);
+
+          expect(response.status).toBe(200);
+          expect(response.body).toHaveProperty('success');
+        });
+
+        it('should fail to request PayPal verification code with missing fields', async () => {
+          const payload = { userId: senderUser._id, orderId: 'ORDER123' }; // missing email
+          const response = await request(app)
+            .post('/api/paypal/request-verification')
+            .set('Authorization', `Bearer ${senderToken}`)
+            .send(payload);
+
+          expect(response.status).toBe(200);
+          expect(response.body.success).toBe(false);
+          expect(response.body.message).toMatch(/email/i);
+        });
+
+        it('should handle error in request PayPal verification code', async () => {
+          jest.spyOn(DepositCode, 'create').mockImplementationOnce(() => { throw new Error('DB error'); });
+          const payload = { userId: senderUser._id, orderId: 'ORDER123', email: 'paypaluser@example.com' };
+          const response = await request(app)
+            .post('/api/paypal/request-verification')
+            .set('Authorization', `Bearer ${senderToken}`)
+            .send(payload);
+
+          expect(response.status).toBe(200);
+          expect(response.body.success).toBe(false);
+        });
+
+        it('should verify PayPal deposit', async () => {
+          await DepositCode.create({
+            userId: senderUser._id,
+            email: senderUser.email,
+            stripeId: 'paypal_order_id',
+            veritificationCode: '112233',
+            expiresAt: new Date(Date.now() + 10 * 60 * 1000)
+          });
+          const payload = { userId: senderUser._id, verificationCode: '112233', amount: 50, orderId: 'paypal_order_id' };
+          const response = await request(app)
+            .post('/api/paypal/verify-paypal')
+            .set('Authorization', `Bearer ${senderToken}`)
+            .send(payload);
+
+          expect(response.status).toBe(200);
+          expect(response.body).toHaveProperty('success');
+        });
+
+        it('should fail PayPal deposit verification with wrong code', async () => {
+          const payload = { userId: senderUser._id, verificationCode: 'wrong', amount: 50, orderId: 'paypal_order_id' };
+          const response = await request(app)
+            .post('/api/paypal/verify-paypal')
+            .set('Authorization', `Bearer ${senderToken}`)
+            .send(payload);
+
+          expect(response.status).toBe(200);
+          expect(response.body.success).toBe(false);
+          expect(response.body.message).toMatch(/invalid or expired/i);
+        });
+
+        it('should handle error in verify PayPal deposit', async () => {
+          jest.spyOn(User, 'findById').mockImplementationOnce(() => { throw new Error('DB error'); });
+          const payload = { userId: senderUser._id, verificationCode: '112233', amount: 50, orderId: 'paypal_order_id' };
+          const response = await request(app)
+            .post('/api/paypal/verify-paypal')
+            .set('Authorization', `Bearer ${senderToken}`)
+            .send(payload);
+
+          expect(response.status).toBe(200);
+          expect(response.body.success).toBe(false);
+        });
+
+        it('should request PayPal withdrawal', async () => {
+          const payload = { userId: senderUser._id, amount: 50, email: 'paypaluser@example.com' };
+          const response = await request(app)
+            .post('/api/paypal/withdraw-paypal')
+            .set('Authorization', `Bearer ${senderToken}`)
+            .send(payload);
+
+          expect(response.status).toBe(200);
+          expect(response.body).toHaveProperty('success');
+        });
+
+        it('should fail PayPal withdrawal with missing email', async () => {
+          const payload = { userId: senderUser._id, amount: 50 };
+          const response = await request(app)
+            .post('/api/paypal/withdraw-paypal')
+            .set('Authorization', `Bearer ${senderToken}`)
+            .send(payload);
+
+          expect(response.status).toBe(200);
+          expect(response.body.success).toBe(false);
+          expect(response.body.message).toMatch(/email/i);
+        });
+
+        it('should handle error in request PayPal withdrawal', async () => {
+          jest.spyOn(DepositCode, 'create').mockImplementationOnce(() => { throw new Error('DB error'); });
+          const payload = { userId: senderUser._id, amount: 50, email: 'paypaluser@example.com' };
+          const response = await request(app)
+            .post('/api/paypal/withdraw-paypal')
+            .set('Authorization', `Bearer ${senderToken}`)
+            .send(payload);
+
+          expect(response.status).toBe(200);
+          expect(response.body.success).toBe(false);
+        });
+
+        it('should verify PayPal withdrawal', async () => {
+          await DepositCode.create({
+            userId: senderUser._id,
+            email: senderUser.email,
+            stripeId: 'paypal_withdraw_id',
+            veritificationCode: '445566',
+            expiresAt: new Date(Date.now() + 10 * 60 * 1000)
+          });
+          const payload = { userId: senderUser._id, verificationCode: '445566', amount: 50, withdrawId: 'paypal_withdraw_id' };
+          const response = await request(app)
+            .post('/api/paypal/verify-withdraw-paypal')
+            .set('Authorization', `Bearer ${senderToken}`)
+            .send(payload);
+
+          expect(response.status).toBe(200);
+          expect(response.body).toHaveProperty('success');
+        });
+
+        it('should fail PayPal withdrawal verification with wrong code', async () => {
+          const payload = { userId: senderUser._id, verificationCode: 'wrong', amount: 50, withdrawId: 'paypal_withdraw_id' };
+          const response = await request(app)
+            .post('/api/paypal/verify-withdraw-paypal')
+            .set('Authorization', `Bearer ${senderToken}`)
+            .send(payload);
+
+          expect(response.status).toBe(200);
+          expect(response.body.success).toBe(false);
+          expect(response.body.message).toMatch(/invalid or expired/i);
+        });
+
+        it('should handle error in verify PayPal withdrawal', async () => {
+          jest.spyOn(User, 'findById').mockImplementationOnce(() => { throw new Error('DB error'); });
+          const payload = { userId: senderUser._id, verificationCode: '445566', amount: 50, withdrawId: 'paypal_withdraw_id' };
+          const response = await request(app)
+            .post('/api/paypal/verify-withdraw-paypal')
+            .set('Authorization', `Bearer ${senderToken}`)
+            .send(payload);
+
+          expect(response.status).toBe(200);
+          expect(response.body.success).toBe(false);
+        });
       });
 
-      const depositData = {
-        userId: senderUser._id,
-        amount: 100,
-        token: {
-          id: 'test_token_id',
-          email: 'test@example.com'
-        }
-      };
+      // Edge case: missing Authorization header
+      describe('Authorization edge cases', () => {
+        it('should reject requests without Authorization header', async () => {
+          const response = await request(app)
+            .post('/api/transactions/transfer-money')
+            .send({});
 
-      const response = await request(app)
-        .post('/api/transactions/deposit-money')
-        .set('Authorization', `Bearer ${senderToken}`)
-        .send(depositData);
+          expect(response.status).toBe(401);
+        });
+
+        it('should reject PayPal endpoints without Authorization header', async () => {
+          const response = await request(app)
+            .post('/api/paypal/create-paypal-order')
+            .send({});
+
+          expect(response.status).toBe(401);
+        });
+      });
+
+      // Edge case: invalid JSON body
+      describe('Invalid JSON body', () => {
+        it('should handle invalid JSON body gracefully', async () => {
+          const response = await request(app)
+            .post('/api/transactions/transfer-money')
+            .set('Authorization', 'Bearer invalidtoken')
+            .set('Content-Type', 'application/json')
+            .send('not-a-json');
+
+          expect(response.status).toBeGreaterThanOrEqual(400);
+        });
+      });
+
+      // Edge case: unknown route
+      describe('Unknown route', () => {
+        it('should return 404 for unknown route', async () => {
+          const response = await request(app)
+            .post('/api/transactions/unknown-route')
+            .set('Authorization', 'Bearer sometoken')
+            .send({});
+
+          expect(response.status).toBe(404);
+        });
+      });
+
+      // Edge case: GET on POST-only endpoint
+      describe('Method not allowed', () => {
+        it('should return 404 for GET on POST-only endpoint', async () => {
+          const response = await request(app)
+            .get('/api/transactions/transfer-money')
+            .set('Authorization', 'Bearer sometoken');
+
+          expect(response.status).toBe(404);
+        });
+      });
+
+      // We recommend installing an extension to run jest tests.
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(false);

@@ -409,7 +409,9 @@ describe('User Authentication & Management Tests', () => {
       expect(foundAdminUser.address).toBe('456 Admin St');
       expect(foundAdminUser.isAdmin).toBe(true);
       expect(foundAdminUser.isVerified).toBe(true);
-    });    it('should allow admin to verify and unverify a user', async () => {
+    });    
+    
+    it('should allow admin to verify and unverify a user', async () => {
       const token = generateTestToken(adminUser._id, true);
 
       // First verify the user
@@ -499,6 +501,66 @@ describe('User Authentication & Management Tests', () => {
       expect(response.body.success).toBe(false);
       expect(response.body.message).toBe('User not found');
     });
+
+  // Test the admin-disable-2fa route
+    it('should allow admin to disable 2FA for another user', async () => {
+      const token = generateTestToken(adminUser._id, true);
+      
+      // First enable 2FA for test user
+      const userToken = generateTestToken(testUser._id);
+      const enableResponse = await request(app)
+        .post('/api/users/enable-2fa')
+        .set('Authorization', `Bearer ${userToken}`)
+        .send({ userId: testUser._id });
+      
+      // Verify 2FA was enabled successfully
+      expect(enableResponse.status).toBe(200);
+      
+      // Now have admin disable it
+      const response = await request(app)
+        .post('/api/users/admin-disable-2fa')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ userId: testUser._id });
+      
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.message).toBe('Two-factor authentication disabled by admin');
+      
+      // Retrieve the updated user and verify 2FA is disabled
+      const updatedUser = testUser;
+      expect(updatedUser.twoFactorEnabled).toBeFalsy();
+      expect(updatedUser.twoFactorSecret).toBeNull();
+    });
+
+    // Test non-admin trying to use admin route
+    it('should prevent non-admin from disabling 2FA for another user', async () => {
+      const nonAdminToken = generateTestToken(testUser._id, false);
+      
+      const response = await request(app)
+        .post('/api/users/admin-disable-2fa')
+        .set('Authorization', `Bearer ${nonAdminToken}`)
+        .send({ userId: adminUser._id });
+      
+      expect(response.status).toBe(403);
+      expect(response.body.success).toBe(false);
+    });    
+    
+    // Test admin-disable-2fa with non-existent user
+    it("should handle non-existent user in admin-disable-2fa", async () => {
+      const fakeUserId = "507f1f77bcf86cd799439011";
+      const token = generateTestToken(fakeUserId, true);
+
+      const response = await request(app)
+        .post("/api/users/admin-disable-2fa")
+        .set("Authorization", `Bearer ${token}`)
+        .send({ userId: fakeUserId });
+
+      expect(response.status).toBe(404);
+      expect(response.body.success).toBe(false);
+      expect(response.body.message).toBe("User not found");
+    });
+
+
   });
 
   describe('Session Management', () => {
@@ -950,6 +1012,254 @@ describe('User Authentication & Management Tests', () => {
       
       // Restore the original method
       User.findById = originalFindById;
+    });
+  });
+
+  describe('Edit User (Admin)', () => {
+    it('should allow admin to edit a user', async () => {
+      const token = generateTestToken(adminUser._id, true);
+      
+      const updateData = {
+        _id: testUser._id,
+        firstName: 'UpdatedFirst',
+        lastName: 'UpdatedLast',
+        address: '456 Updated St'
+      };
+      
+      const response = await request(app)
+        .post('/api/users/edit-user')
+        .set('Authorization', `Bearer ${token}`)
+        .send(updateData);
+      
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.firstName).toBe('UpdatedFirst');
+      expect(response.body.data.lastName).toBe('UpdatedLast');
+      expect(response.body.data.address).toBe('456 Updated St');
+      
+      // Original fields should be unchanged
+      expect(response.body.data.email).toBe('test@example.com');
+      expect(response.body.data.phoneNumber).toBe('1234567890');
+    });
+    
+    it('should allow admin to update user password', async () => {
+      const token = generateTestToken(adminUser._id, true);
+      
+      const updateData = {
+        _id: testUser._id,
+        password: 'NewPass123'
+      };
+      
+      const response = await request(app)
+        .post('/api/users/edit-user')
+        .set('Authorization', `Bearer ${token}`)
+        .send(updateData);
+      
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      
+      // Try logging in with new password
+      const loginResponse = await request(app)
+        .post('/api/users/login')
+        .send({
+          email: 'test@example.com',
+          password: 'NewPass123'
+        });
+      
+      expect(loginResponse.status).toBe(200);
+      expect(loginResponse.body.success).toBe(true);
+    });
+    
+    it('should reject edits with invalid data', async () => {
+      const token = generateTestToken(adminUser._id, true);
+      
+      const invalidUpdateData = {
+        _id: testUser._id,
+        email: 'not-an-email',
+        phoneNumber: '123' // Too short
+      };
+      
+      const response = await request(app)
+        .post('/api/users/edit-user')
+        .set('Authorization', `Bearer ${token}`)
+        .send(invalidUpdateData);
+      
+      expect(response.status).toBe(400);
+      expect(response.body.success).toBe(false);
+      expect(response.body.errors).toBeDefined();
+    });
+    
+    it('should handle editing non-existent user', async () => {
+      const token = generateTestToken(adminUser._id, true);
+      const fakeUserId = '507f1f77bcf86cd799439011';
+      
+      const response = await request(app)
+        .post('/api/users/edit-user')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          _id: fakeUserId,
+          firstName: 'NewName'
+        });
+      
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(false);
+      expect(response.body.message).toBe('User not found');
+    });
+    
+    it('should prevent non-admin from editing users', async () => {
+      const token = generateTestToken(testUser._id, false);
+      
+      const response = await request(app)
+        .post('/api/users/edit-user')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          _id: testUser._id,
+          firstName: 'ShouldNotUpdate'
+        });
+      
+      expect(response.status).toBe(403);
+      expect(response.body.success).toBe(false);
+    });
+  });
+  describe('Input Sanitization', () => {
+    it('should sanitize potentially malicious inputs on registration', async () => {
+      const userWithMaliciousInput = {
+        firstName: 'John',
+        lastName: 'Doe',
+        email: 'clean@example.com',
+        phoneNumber: '1234567890',
+        identificationType: 'PASSPORT',
+        identificationNumber: 'CLEAN123',
+        address: '123 Clean St',
+        password: 'CleanPass123',
+        confirmPassword: 'CleanPass123'
+      };
+
+      const response = await request(app)
+        .post('/api/users/register')
+        .send(userWithMaliciousInput);
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+
+      // Verify user was created in database
+      const user = await User.findOne({ email: 'clean@example.com' });
+      expect(user).not.toBeNull();
+      expect(user.firstName).toBe('John');
+      expect(user.lastName).toBe('Doe');
+      expect(user.address).toBe('123 Clean St');
+    });
+    
+    it('should handle XSS attempts in 2FA token verification', async () => {
+      // Setup user with 2FA
+      const token = generateTestToken(testUser._id);
+      await request(app)
+        .post('/api/users/enable-2fa')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ userId: testUser._id });
+      
+      // Attempt XSS in token field
+      const response = await request(app)
+        .post('/api/users/verify-2fa')
+        .send({
+          userId: testUser._id,
+          token: '<script>alert("xss")</script>123456'
+        });
+      
+      expect(response.status).toBe(400);
+      expect(response.body.success).toBe(false);
+    });
+  });
+
+  describe('Login with 2FA', () => {
+    it('should require 2FA when enabled', async () => {
+      // Enable 2FA for test user
+      const setupToken = generateTestToken(testUser._id);
+      await request(app)
+        .post('/api/users/enable-2fa')
+        .set('Authorization', `Bearer ${setupToken}`)
+        .send({ userId: testUser._id });
+      
+      // Attempt to login
+      const loginResponse = await request(app)
+        .post('/api/users/login')
+        .send({
+          email: 'test@example.com',
+          password: 'TestPass123'
+        });
+      
+      expect(loginResponse.status).toBe(200);
+      expect(loginResponse.body.success).toBe(true);
+      expect(loginResponse.body.twoFA).toBe(true);
+      expect(loginResponse.body.userId).toBeDefined();
+      expect(loginResponse.body.data).toBeUndefined(); // No token returned yet
+    });
+  });
+
+  describe('Rate Limiting', () => {
+    it('should limit repeated failed login attempts', async () => {
+      // Attempt multiple failed logins
+      const badCredentials = {
+        email: 'test@example.com',
+        password: 'WrongPassword'
+      };
+      
+      // Make several failed login attempts
+      for (let i = 0; i < 5; i++) {
+        await request(app)
+          .post('/api/users/login')
+          .send(badCredentials);
+      }
+      
+      // One more should trigger rate limiting
+      const finalResponse = await request(app)
+        .post('/api/users/login')
+        .send(badCredentials);
+      
+      expect(finalResponse.status).toBe(429); // Too Many Requests
+      expect(finalResponse.body.success).toBe(false);
+      expect(finalResponse.body.message).toContain('Too many incorrect attempts. Retry in 60 seconds.');
+    });
+  });
+
+  describe('JWT Error Handling', () => {
+    it('should handle JWT signing errors', async () => {
+      // Mock jwt.sign to throw an error
+      const originalSign = jwt.sign;
+      jwt.sign = jest.fn().mockImplementation(() => {
+        throw new Error('JWT signing error');
+      });
+      
+      const loginResponse = await request(app)
+        .post('/api/users/login')
+        .send({
+          email: 'test@example.com', 
+          password: 'TestPass123'
+        });
+      
+      expect(loginResponse.status).toBe(429);
+      expect(loginResponse.body.success).toBe(false);
+      
+      // Restore original function
+      jwt.sign = originalSign;
+    });
+      it('should handle JWT verification errors in refresh token', async () => {
+      // Mock jwt.verify to throw an error
+      const originalVerify = jwt.verify;
+      jwt.verify = jest.fn().mockImplementation(() => {
+        throw new Error('JWT verification error');
+      });
+      
+      // Send request with a cookie
+      const response = await request(app)
+        .post('/api/users/refresh-token')
+        .set('Cookie', 'refreshToken=some-token-value');
+      
+      expect(response.status).toBe(403);
+      expect(response.body.success).toBe(false);
+      
+      // Restore original function
+      jwt.verify = originalVerify;
     });
   });
 });

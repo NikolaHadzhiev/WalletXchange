@@ -427,12 +427,14 @@ router.post("/verify-deposit", authenticationMiddleware, async (req, res) => {
           );
         }
 
-        res.send({
+        return res.send({
           success: true,
           message: "Deposit successful",
-        });      } else {
+        });      
+      
+      } else {
         // Handle non-successful payment intent status
-        res.send({
+        return res.send({
           success: false,
           message: `Payment failed: ${paymentIntent.last_payment_error?.message || paymentIntent.status}`,
         });
@@ -455,14 +457,14 @@ router.post("/verify-deposit", authenticationMiddleware, async (req, res) => {
       // Delete the verification code since payment failed
       await DepositCode.deleteOne({ _id: codeRecord._id });
       
-      res.send({
+      return res.send({
         message: "Error verifying deposit",
         data: errorMessage,
         success: false,
       });
     }
   } catch (error) {
-    res.send({
+    return res.send({
       message: "Error verifying deposit",
       data: purify.sanitize(error.message),
       success: false,

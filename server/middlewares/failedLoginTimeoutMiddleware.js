@@ -28,7 +28,7 @@ module.exports.loginRateLimiter = async function (req, res, next) {
     req.incrementAttempts = async () => {
       loginAttempt.attempts += 1;
       if (loginAttempt.attempts >= MAX_ATTEMPTS) {
-        loginAttempt.timeoutUntil = new Date(now.getTime() + TIMEOUT);
+        loginAttempt.timeoutUntil = new Date(now.getTime() + (TIMEOUT * (loginAttempt.blockedCount + 1)));
         loginAttempt.attempts = 0; // Reset count after lockout
         loginAttempt.blockedCount += 1;
       }

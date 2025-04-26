@@ -245,6 +245,7 @@ function Users() {
         sanitized[key] = DOMPurify.sanitize(values[key]);
       });
       sanitized._id = editingUser._id;
+      sanitized.password = passwordLocked ? undefined : sanitized.password;
       dispatch(ShowLoading());
       const response = await EditUser(sanitized);
       dispatch(HideLoading());
@@ -328,7 +329,7 @@ function Users() {
                 onClick={async () => {
                   if (!editingUser) return;
                   dispatch(ShowLoading());
-                  const response = await AdminDisable2FA({ userId: editingUser._id });
+                  const response = await AdminDisable2FA({ editUserId: editingUser._id });
                   dispatch(HideLoading());
                   if (response.success) {
                     message.success('2FA disabled for user.');

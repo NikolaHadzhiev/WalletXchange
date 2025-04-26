@@ -511,7 +511,7 @@ describe('User Authentication & Management Tests', () => {
       const enableResponse = await request(app)
         .post('/api/users/enable-2fa')
         .set('Authorization', `Bearer ${userToken}`)
-        .send({ userId: testUser._id });
+        .send({ editUserId: testUser._id });
       
       // Verify 2FA was enabled successfully
       expect(enableResponse.status).toBe(200);
@@ -520,7 +520,7 @@ describe('User Authentication & Management Tests', () => {
       const response = await request(app)
         .post('/api/users/admin-disable-2fa')
         .set('Authorization', `Bearer ${token}`)
-        .send({ userId: testUser._id });
+        .send({ editUserId: testUser._id });
       
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);

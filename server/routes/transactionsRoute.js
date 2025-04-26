@@ -29,6 +29,12 @@ const createTransporter = () => {
 
 // Helper function to send transaction notification emails
 const sendTransactionEmail = async (email, subject, message) => {
+  // Skip email sending if in test environment
+  if (process.env.NODE_ENV === "test") {
+    console.log("Test environment detected, skipping email:", { to: email, subject });
+    return true;
+  }
+  
   try {
     const transporter = createTransporter();
     await transporter.sendMail({
@@ -312,32 +318,35 @@ router.post("/deposit-money", authenticationMiddleware, async (req, res) => {
       stripeId: sanitizedTokenId,
       veritificationCode: verificationCode.toString(),
       expiresAt: expirationTime,
-    });
+    });    // Skip email sending if in test environment
+    if (process.env.NODE_ENV !== "test") {
+      const transporter = nodemailer.createTransport({
+        host: process.env.email_host,
+        port: process.env.email_port,
+        secure: true,
+        auth: {
+          user: process.env.email_username,
+          pass: process.env.email_password,
+        },
+      });
 
-    const transporter = nodemailer.createTransport({
-      host: process.env.email_host,
-      port: process.env.email_port,
-      secure: true,
-      auth: {
-        user: process.env.email_username,
-        pass: process.env.email_password,
-      },
-    });
+      const mailOptions = {
+        from: process.env.email_username,
+        to: sanitizedEmail,
+        subject: "Deposit Verification Code for WalletXChange",
+        text: `Dear user,
 
-    const mailOptions = {
-      from: process.env.email_username,
-      to: sanitizedEmail,
-      subject: "Deposit Verification Code for WalletXChange",
-      text: `Dear user,
+        Your verification code for confirming your deposit is: ${verificationCode}.
 
-      Your verification code for confirming your deposit is: ${verificationCode}.
+        Please enter this code within 10 minutes to complete your deposit. If you did not request this deposit, please disregard this message.
 
-      Please enter this code within 10 minutes to complete your deposit. If you did not request this deposit, please disregard this message.
+        Thank you for using our service!`,
+      };
 
-      Thank you for using our service!`,
-    };
-
-    await transporter.sendMail(mailOptions);
+      await transporter.sendMail(mailOptions);
+    } else {
+      console.log("Test environment detected, skipping verification email for deposit");
+    }
 
     res.send({
       message: "A verification code has been sent to your email. Please enter the code to proceed with the deposit.",

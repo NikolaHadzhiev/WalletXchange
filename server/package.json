@@ -2,12 +2,17 @@
   "name": "walletxchange",
   "version": "1.0.0",
   "description": "WalletXchange is your ultimate destination for seamless digital finance management. In short - a robust virtual wallet platform designed to simplify and enhance sending and receiving money effortlessly, top up your wallet directly from your bank account and make purchases smoothly using funds stored in your wallet.",
-  "main": "index.js",
-  "scripts": {
+  "main": "index.js",  "scripts": {
     "start": "set NODE_ENV=development&&nodemon ./server.js",
+    "start:loadtest": "set NODE_ENV=test&&nodemon ./server.js",
     "client": "npm start --prefix client",
     "test": "jest --detectOpenHandles --runInBand --coverage",
-    "test:watch": "jest --watch"
+    "test:watch": "jest --watch",
+    "load-test": "set NODE_ENV=test&&k6 run tests/performance/api-load.test.k6.js",
+    "load-test:clean": "set NODE_ENV=test&&k6 run tests/performance/api-load.test.k6.js && node tests/performance/cleanup-load-test-users.js",
+    "setup-test-users": "node tests/performance/setup-load-test-users.js",
+    "cleanup-test-users": "node tests/performance/cleanup-load-test-users.js",
+    "load-test:full": "node tests/performance/setup-load-test-users.js && set NODE_ENV=test&&k6 run --summary-trend-stats=avg,min,med,p(90),p(95),max tests/performance/api-load.test.k6.js && node tests/performance/cleanup-load-test-users.js"
   },
   "repository": {
     "type": "git",
@@ -54,6 +59,7 @@
   },
   "jest": {
     "testEnvironment": "node",
+    "testMatch": ["**/tests/**/*.test.js"],
     "coverageThreshold": {
       "global": {
         "branches": 85,

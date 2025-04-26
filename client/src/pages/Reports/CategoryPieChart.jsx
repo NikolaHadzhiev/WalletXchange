@@ -26,7 +26,7 @@ const CategoryPieChart = ({ categoryData = {}, type = "income" }) => {
     .map(([name, value]) => ({ name, value }));
 
   return (
-    <ResponsiveContainer width="100%" height={210}>
+    <ResponsiveContainer width="100%" height={250}>
       <PieChart>
         <Pie
           data={chartData}

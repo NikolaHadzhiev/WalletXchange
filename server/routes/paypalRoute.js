@@ -39,6 +39,17 @@ const createTransporter = () => {
 
 // Helper: send email
 const sendTransactionEmail = async (email, subject, message) => {
+  // Skip email sending if in test environment
+  if (process.env.NODE_ENV === "test") {
+    console.log("Test environment detected, skipping email:", { to: email, subject });
+    return true;
+  }
+    // Skip email sending if in test environment
+  if (process.env.NODE_ENV === "test") {
+    console.log("Test environment detected, skipping email:", { to: email, subject });
+    return true;
+  }
+  
   try {
     const transporter = createTransporter();
     await transporter.sendMail({

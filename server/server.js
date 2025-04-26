@@ -4,8 +4,10 @@ require('dotenv').config({
 
 if (process.env.NODE_ENV === 'production') {
   console.log('Running in production mode');
-} else {
+} else if (process.env.NODE_ENV === 'development'){
   console.log('Running in development mode');
+} else {
+  console.log('Running in test (performance) mode');
 }
 
 const helmet = require('helmet');
@@ -53,7 +55,9 @@ const paypalRoute = require("./routes/paypalRoute");
 const PORT = process.env.PORT || 5000;
 
 app.use("/api", ddosRoute);
-app.use("/api/", ddosProtection);
+if (process.env.NODE_ENV !== 'test') {
+  app.use("/api/", ddosProtection);
+}
 app.use('/api/users', userRoute);
 app.use("/api/transactions", transactionsRoute);
 app.use("/api/requests", requestsRoute);

@@ -126,7 +126,7 @@ router.post(
     // Sanitize password (escape to remove malicious characters)
     body("password").notEmpty().withMessage("Password is required").escape(),
   ],
-  loginRateLimiter,
+  ...(process.env.NODE_ENV !== "test" ? [loginRateLimiter] : []),
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -151,14 +151,14 @@ router.post(
 
       const validPassword = await bcrypt.compare(password, user.password);
       if (!validPassword) {
-        await req.incrementAttempts();
+        process.env.NODE_ENV !== "test" && await req.incrementAttempts();
         return res.status(401).send({
           success: false,
           message: "Invalid password. Please try again.",
         });
       }
 
-      await req.resetAttempts(); // Reset attempts on successful login
+      process.env.NODE_ENV !== "test" && await req.resetAttempts(); // Reset attempts on successful login
 
       if (!user.isVerified) {
         return res.status(403).send({
@@ -558,8 +558,8 @@ router.post('/disable-2fa', authenticationMiddleware, async (req, res) => {
 // ADMIN: Disable 2FA for a user (e.g. lost phone)
 router.post("/admin-disable-2fa", authenticationMiddleware, authorizationMiddleware, async (req, res) => {
   try {
-    const { userId } = req.body;
-    const user = await User.findById(userId);
+    const { editUserId } = req.body;
+    const user = await User.findById(editUserId);
     if (!user) {
       return res.status(404).send({
         message: 'User not found',

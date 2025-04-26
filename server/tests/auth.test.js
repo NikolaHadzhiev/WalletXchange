@@ -4,6 +4,10 @@ const jwt = require('jsonwebtoken');
 const { authenticationMiddleware, authorizationMiddleware } = require('../middlewares/authMiddleware');
 const { generateTestToken } = require('./setup');
 
+require('dotenv').config({
+  path: '.env.development',
+});
+
 // Mock environment variables
 process.env.jwt_secret = 'test-secret';
 

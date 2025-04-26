@@ -12,7 +12,7 @@
     "load-test:clean": "set NODE_ENV=test&&k6 run tests/performance/api-load.test.k6.js && node tests/performance/cleanup-load-test-users.js",
     "setup-test-users": "node tests/performance/setup-load-test-users.js",
     "cleanup-test-users": "node tests/performance/cleanup-load-test-users.js",
-    "load-test:full": "node tests/performance/setup-load-test-users.js && set NODE_ENV=test&&k6 run tests/performance/api-load.test.k6.js && node tests/performance/cleanup-load-test-users.js"
+    "load-test:full": "node tests/performance/setup-load-test-users.js && set NODE_ENV=test&&k6 run --summary-trend-stats=avg,min,med,p(90),p(95),max tests/performance/api-load.test.k6.js && node tests/performance/cleanup-load-test-users.js"
   },
   "repository": {
     "type": "git",

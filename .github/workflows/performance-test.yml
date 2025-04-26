@@ -1,0 +1,79 @@
+name: Performance Tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_option:
+        description: 'Performance test to run'
+        required: true
+        default: 'full'
+        type: choice
+        options:
+          - 'basic'
+          - 'full'
+          - 'setup-only'
+        
+jobs:
+  performance-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./server
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+    
+    - name: Use Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+        cache-dependency-path: './server/package.json'
+    
+    - name: Install Dependencies
+      run: npm ci
+      
+    - name: Install k6
+      run: |
+        curl -L https://github.com/grafana/k6/releases/download/v0.45.0/k6-v0.45.0-linux-amd64.tar.gz | tar xz
+        sudo cp k6-v0.45.0-linux-amd64/k6 /usr/local/bin
+    
+    - name: Start Server in Test Mode
+      run: npm run start:loadtest &
+      env:
+        NODE_ENV: test
+    
+    - name: Wait for Server
+      run: |
+        echo "Waiting for server to start..."
+        timeout=30
+        until $(curl --output /dev/null --silent --head --fail http://localhost:8080 || [ $timeout -le 0 ]); do
+          sleep 1
+          timeout=$((timeout-1))
+          echo "Remaining: $timeout seconds"
+        done
+        if [ $timeout -le 0 ]; then
+          echo "Server failed to start"
+          exit 1
+        fi
+        echo "Server started!"
+    
+    - name: Setup Test Users
+      if: ${{ github.event.inputs.test_option == 'full' || github.event.inputs.test_option == 'setup-only' }}
+      run: npm run setup-test-users
+    
+    - name: Run Performance Tests
+      if: ${{ github.event.inputs.test_option != 'setup-only' }}
+      run: |
+        if [ "${{ github.event.inputs.test_option }}" == "full" ]; then
+          # The script in package.json uses Windows syntax, adapting for Linux
+          NODE_ENV=test k6 run --summary-trend-stats=avg,min,med,p\(90\),p\(95\),max tests/performance/api-load.test.k6.js
+        else
+          NODE_ENV=test k6 run tests/performance/api-load.test.k6.js
+        fi
+      continue-on-error: true
+    
+    - name: Cleanup Test Users
+      if: always()
+      run: npm run cleanup-test-users

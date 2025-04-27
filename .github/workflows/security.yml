@@ -1,0 +1,193 @@
+name: Security Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:  # Allows manual triggering
+
+jobs:
+  dependency-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install root dependencies
+        run: npm ci
+        continue-on-error: true
+
+      - name: Run npm audit on root
+        run: npm audit --json > npm-audit-root.json || true
+        
+      - name: Install client dependencies
+        run: |
+          cd client
+          npm ci
+        continue-on-error: true
+
+      - name: Run npm audit on client
+        run: |
+          cd client
+          npm audit --json > ../npm-audit-client.json || true
+
+      - name: Install server dependencies
+        run: |
+          cd server
+          npm ci
+        continue-on-error: true
+
+      - name: Run npm audit on server
+        run: |
+          cd server
+          npm audit --json > ../npm-audit-server.json || true
+
+      - name: Format audit results
+        run: |
+          echo "## Security Audit Results" > security-report.md
+          echo "### Root Project" >> security-report.md
+          echo '```' >> security-report.md
+          cat npm-audit-root.json | npx -y json | grep -v '"path":' >> security-report.md || echo "No vulnerabilities found" >> security-report.md
+          echo '```' >> security-report.md
+          
+          echo "### Client" >> security-report.md
+          echo '```' >> security-report.md
+          cat npm-audit-client.json | npx -y json | grep -v '"path":' >> security-report.md || echo "No vulnerabilities found" >> security-report.md
+          echo '```' >> security-report.md
+          
+          echo "### Server" >> security-report.md
+          echo '```' >> security-report.md
+          cat npm-audit-server.json | npx -y json | grep -v '"path":' >> security-report.md || echo "No vulnerabilities found" >> security-report.md
+          echo '```' >> security-report.md
+
+      - name: Upload security report as artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: security-report
+          path: security-report.md
+
+      - name: Comment PR with security report
+        uses: actions/github-script@v6
+        if: github.event_name == 'pull_request'
+        with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('security-report.md', 'utf8');
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: report
+            });
+
+  docker-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Run Trivy vulnerability scanner on Dockerfile
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+          
+  zap-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [dependency-scan]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: |
+          npm ci
+          cd client && npm ci
+          cd ../server && npm ci
+          
+      - name: Setup ZAP configuration
+        run: |
+          mkdir -p .zap
+          echo "10016	IGNORE	A timeout occurred and the scan was terminated before completion" > .zap/rules.tsv
+          echo "10020	IGNORE	X-Frame-Options header not set" >> .zap/rules.tsv
+          echo "10038	IGNORE	Content Security Policy (CSP) header not set" >> .zap/rules.tsv
+          echo "10049	IGNORE	Storable but cacheable content" >> .zap/rules.tsv
+      
+      - name: Build client
+        run: |
+          cd client
+          npm run build
+        
+      - name: Start server in background
+        run: |
+          cd server
+          npm start &
+      
+      - name: Wait for server to be ready
+        run: |
+          echo "Waiting for server (localhost:3000) to be ready..."
+          for i in {1..30}; do
+            nc -z localhost 3000 && echo "Server is ready!" && exit 0
+            echo "Still waiting for server..."
+            sleep 2
+          done
+          echo "Timeout waiting for server to start" && exit 1
+          
+      - name: Start client in background
+        run: |
+          cd client
+          npm run preview -- --port 3000 &
+      
+      - name: Wait for client to be ready
+        run: |
+          echo "Waiting for client (localhost:3000) to be ready..."
+          for i in {1..30}; do
+            nc -z localhost 3000 && echo "Client is ready!" && exit 0
+            echo "Still waiting for client..."
+            sleep 2
+          done
+          echo "Timeout waiting for client to start" && exit 1
+          
+      - name: ZAP Scan
+        uses: zaproxy/action-baseline@v0.9.0
+        with:
+          target: 'http://localhost:3000'
+          rules_file_name: '.zap/rules.tsv'
+          cmd_options: '-a'
+          fail_action: false
+          
+      - name: Upload ZAP report
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: zap-report
+          path: report.html

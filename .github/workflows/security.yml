@@ -111,7 +111,7 @@ jobs:
           severity: 'CRITICAL,HIGH'
 
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v2
+        uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
           sarif_file: 'trivy-results.sarif'
@@ -208,13 +208,13 @@ jobs:
           rules_file_name: '.zap/rules.tsv'
           cmd_options: '-a'
           fail_action: false
-          artifact_name: zap-scan-report
+          artifact_name: zap-scan-report-full-${{ github.run_id }}
           
       - name: Upload ZAP scan report as artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: zap-scan-report-${{ github.run_id }}
+          name: zap-scan-report-html-only-${{ github.run_id }}
           path: report_html.html
         env:
           ACTIONS_STEP_DEBUG: true

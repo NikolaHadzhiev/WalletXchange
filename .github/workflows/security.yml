@@ -70,7 +70,7 @@ jobs:
           echo '```' >> security-report.md
 
       - name: Upload security report as artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v2
         with:
           name: security-report
           path: security-report.md
@@ -108,7 +108,7 @@ jobs:
           severity: 'CRITICAL,HIGH'
 
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v2
+        uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
           sarif_file: 'trivy-results.sarif'
@@ -187,7 +187,7 @@ jobs:
           
       - name: Upload ZAP report
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v2
         with:
           name: zap-report
           path: report.html

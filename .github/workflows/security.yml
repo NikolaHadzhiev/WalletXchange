@@ -208,9 +208,11 @@ jobs:
           cmd_options: '-a'
           fail_action: false
           
-      - name: Upload ZAP report
+      - name: Upload ZAP scan report as artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: zap-report
-          path: report.html
+          name: zap-scan-report
+          path: report_html.html
+        env:
+          ACTIONS_STEP_DEBUG: true

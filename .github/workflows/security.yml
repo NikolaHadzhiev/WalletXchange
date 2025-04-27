@@ -70,7 +70,7 @@ jobs:
           echo '```' >> security-report.md
 
       - name: Upload security report as artifact
-        uses: actions/upload-artifact@83fd05a356d7e2593de66fc9913b3002723633cb # v3.1.1
+        uses: actions/upload-artifact@v4
         with:
           name: security-report
           path: security-report.md
@@ -187,7 +187,7 @@ jobs:
           
       - name: Upload ZAP report
         if: always()
-        uses: actions/upload-artifact@83fd05a356d7e2593de66fc9913b3002723633cb # v3.1.1
+        uses: actions/upload-artifact@v4
         with:
           name: zap-report
           path: report.html

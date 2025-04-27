@@ -174,9 +174,9 @@ jobs:
           TWILIO_PHONE_NUMBER: ${{ secrets.TWILIO_PHONE_NUMBER }}
       - name: Wait for server to be ready
         run: |
-          echo "Waiting for server (localhost:3000) to be ready..."
+          echo "Waiting for server (localhost:5000) to be ready..."
           for i in {1..30}; do
-            nc -z localhost 3000 && echo "Server is ready!" && exit 0
+            nc -z localhost 5000 && echo "Server is ready!" && exit 0
             echo "Still waiting for server..."
             sleep 2
           done

@@ -9,6 +9,7 @@ on:
 permissions:
   issues: write
   pull-requests: write
+  actions: write
 jobs:
   dependency-scan:
     runs-on: ubuntu-latest
@@ -207,7 +208,7 @@ jobs:
           rules_file_name: '.zap/rules.tsv'
           cmd_options: '-a'
           fail_action: false
-          artifact_name: zap-scan-report-${{ github.run_id }}.html
+          artifact_name: zapScanReport
           
       - name: Upload ZAP scan report as artifact
         if: always()

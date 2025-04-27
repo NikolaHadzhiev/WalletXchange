@@ -153,7 +153,25 @@ jobs:
         run: |
           cd server
           npm start &
-      
+        env:
+          NODE_ENV: development
+          cors_url: http://localhost:3000
+          mongo_url: ${{ secrets.MONGO_URL }}
+          jwt_secret: ${{ secrets.JWT_SECRET }}
+          refresh_token_secret: ${{ secrets.REFRESH_TOKEN_SECRET }}
+          stripe_key: ${{ secrets.STRIPE_KEY }}
+          email_host: ${{ secrets.EMAIL_HOST }}
+          email_port: ${{ secrets.EMAIL_PORT }}
+          email_username: ${{ secrets.EMAIL_USERNAME }}
+          email_password: ${{ secrets.EMAIL_PASSWORD }}
+          reddis_cloud_host: ${{ secrets.REDDIS_CLOUD_HOST }}
+          reddis_cloud_port: ${{ secrets.REDDIS_CLOUD_PORT }}
+          reddis_cloud_password: ${{ secrets.REDDIS_CLOUD_PASSWORD }}
+          paypal_client_id: ${{ secrets.PAYPAL_CLIENT_ID }}
+          paypal_client_secret: ${{ secrets.PAYPAL_CLIENT_SECRET }}
+          TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
+          TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
+          TWILIO_PHONE_NUMBER: ${{ secrets.TWILIO_PHONE_NUMBER }}
       - name: Wait for server to be ready
         run: |
           echo "Waiting for server (localhost:3000) to be ready..."
@@ -168,7 +186,10 @@ jobs:
         run: |
           cd client
           npm run preview -- --port 3000 &
-      
+        env:
+          NODE_ENV: development
+          VITE_API_URL: http://localhost:5000
+          VITE_STATE_ENCRYPTION_KEY: ${{ secrets.VITE_STATE_ENCRYPTION_KEY }}
       - name: Wait for client to be ready
         run: |
           echo "Waiting for client (localhost:3000) to be ready..."

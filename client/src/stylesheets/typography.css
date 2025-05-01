@@ -45,5 +45,51 @@ i {
     cursor: pointer;
 }
 
+/* Responsive typography for mobile devices */
+@media (max-width: 768px) {
+    .text-2xl {
+        font-size: 22px !important;
+    }
+    
+    .text-xl {
+        font-size: 18px !important;
+    }
+    
+    .text-lg {
+        font-size: 16px !important;
+    }
+    
+    .text-md {
+        font-size: 14px !important;
+    }
+    
+    .text-sm {
+        font-size: 12px !important;
+    }
+    
+    i {
+        font-size: 18px;
+    }
+    
+    .text-truncate {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .sm-text-center {
+        text-align: center;
+    }
+    
+    .sm-text-left {
+        text-align: left;
+    }
+    
+    .sm-break-word {
+        word-break: break-word;
+        overflow-wrap: break-word;
+    }
+}
+
 
 

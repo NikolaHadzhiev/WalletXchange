@@ -18,11 +18,19 @@ export const LoginUser = async (payload) => {
 // register user
 export const RegisterUser = async (payload) => {
   try {
-    const { data } = await axiosInstance.post("/api/users/register", payload);
+    // Ensure all form values are proper strings to prevent server-side trim() errors
+    const sanitizedPayload = {};
+    for (const key in payload) {
+      sanitizedPayload[key] = payload[key] !== undefined && payload[key] !== null 
+        ? String(payload[key])
+        : "";
+    }
+    
+    const { data } = await axiosInstance.post("/api/users/register", sanitizedPayload);
     return data;
   } catch (error) {
     if(!error.response) {
-      return { message: "Server error" };
+      return { success: false, message: "Server error" };
     }
     return error.response.data;
   }

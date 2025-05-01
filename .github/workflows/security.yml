@@ -10,6 +10,8 @@ permissions:
   issues: write
   pull-requests: write
   actions: write
+  contents: read
+  security-events: write
 jobs:
   dependency-scan:
     runs-on: ubuntu-latest
@@ -115,6 +117,7 @@ jobs:
         if: always()
         with:
           sarif_file: 'trivy-results.sarif'
+          token: ${{ secrets.GITHUB_TOKEN }}
           
   zap-scan:
     runs-on: ubuntu-latest

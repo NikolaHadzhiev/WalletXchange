@@ -32,9 +32,13 @@ function Register() {
       // Sanitize all inputs before sending them to the server
       const sanitizedValues = {};
       for (const key in values) {
-        sanitizedValues[key] = DOMPurify.sanitize(values[key]);
+        // Ensure all values are strings to prevent trim() errors on the server
+        const valueAsString = values[key] !== undefined && values[key] !== null 
+          ? String(values[key]) 
+          : "";
+        sanitizedValues[key] = DOMPurify.sanitize(valueAsString);
       }
-
+      
       dispatch(ShowLoading());
       const response = await RegisterUser(sanitizedValues);
       dispatch(HideLoading());
@@ -44,11 +48,12 @@ function Register() {
           navigate("/login");
         });
       } else {
-        message.error(response.message);
+        message.error(response.message || "Registration failed. Please try again.");
       }
     } catch (error) {
       dispatch(HideLoading());
-      message.error(error.message);
+      message.error(error.message || "An unexpected error occurred");
+      console.error("Registration error:", error);
     }
   };
 
@@ -95,13 +100,65 @@ function Register() {
 
   const handleSubmit = async () => {
     try {
-      const isValid = await validateCurrentStep();
-      if (isValid) {
-        const values = await form.validateFields();
-        onFinish(values);
+      // First validate the current step
+      const currentStepValid = await validateCurrentStep();
+      if (currentStepValid) {
+        // Then validate all fields before submission
+        try {
+          // Validate all fields in all steps
+          const allFieldsToValidate = steps.flatMap(step => step.fields);
+          const values = await form.validateFields(allFieldsToValidate);
+          
+          // Ensure no undefined values are sent to server
+          const cleanValues = {};
+          for (const key in values) {
+            // Only include defined and non-null values
+            if (values[key] !== undefined && values[key] !== null) {
+              // Convert to string to avoid trim errors in the backend
+              cleanValues[key] = values[key] !== undefined ? String(values[key]) : "";
+            }
+          }
+          
+          // Submit only if we have all required fields
+          if (
+            cleanValues.firstName &&
+            cleanValues.lastName &&
+            cleanValues.email &&
+            cleanValues.phoneNumber &&
+            cleanValues.address &&
+            cleanValues.identificationType &&
+            cleanValues.identificationNumber &&
+            cleanValues.password &&
+            cleanValues.confirmPassword
+          ) {
+            onFinish(cleanValues);
+          } else {
+            message.error("Please fill out all required fields in all steps.");
+            // Find the first step that has incomplete fields and go to it
+            for (let i = 0; i < steps.length; i++) {
+              const stepFields = steps[i].fields;
+              const missingField = stepFields.find(field => !cleanValues[field]);
+              if (missingField) {
+                setCurrentStep(i);
+                break;
+              }
+            }
+          }
+        } catch (validationError) {
+          // Find which step contains the invalid fields and navigate to it
+          const errorFields = validationError.errorFields.map(field => field.name[0]);
+          for (let i = 0; i < steps.length; i++) {
+            const stepFields = steps[i].fields;
+            const hasError = stepFields.some(field => errorFields.includes(field));
+            if (hasError) {
+              setCurrentStep(i);
+              break;
+            }
+          }
+        }
       }
     } catch (errorInfo) {
-      console.log("Validation failed:", errorInfo);
+      message.error("Please fill out all required fields in this step.");
     }
   };
 
@@ -191,8 +248,8 @@ function Register() {
                 <Input />
               </Form.Item>
             </>
-          )}
-
+          )}          
+          
           {/* Step 2: Address */}
           {currentStep === 1 && (
             <>
@@ -210,8 +267,12 @@ function Register() {
                       "Address must be 1-100 characters long and not contain special characters.",
                   },
                 ]}
+                getValueFromEvent={(e) => {
+                  // Ensure we're always getting a string value
+                  return typeof e === 'string' ? e : e.target.value;
+                }}
               >
-                <Input.TextArea rows={4} />
+                <Input.TextArea rows={1} />
               </Form.Item>
             </>
           )}
@@ -311,7 +372,7 @@ function Register() {
           )}
         </div>
 
-        <div className="flex justify-between mt-3">
+        <div className="flex justify-between mt-3 mobile-buttons">
           {currentStep > 0 && (
             <button
               className="primary-outlined-btn"

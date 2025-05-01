@@ -72,6 +72,14 @@
     .h-screen > .sm-w-100 {
         width: 85%;
     }
+
+    .register-mobile-container .primary-outlined-btn {
+        width: 48% !important;
+    }
+
+    .register-mobile-container .mobile-buttons {
+        flex-direction: row;
+    }
 }
 
 /* flex */

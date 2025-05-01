@@ -54,3 +54,22 @@ input:focus , select:focus , textarea:focus{
     border-radius: 3px;
 }
 
+/* Responsive styles for mobile */
+@media (max-width: 768px) {
+    .primary-contained-btn, 
+    .primary-outlined-btn,
+    .delete-contained-btn,
+    .tfa-btn,
+    .tfa-disable-btn {
+        font-size: 0.9rem;
+        padding: 8px 15px;
+        width: 100%;
+        margin: 5px 0;
+        text-align: center;
+    }
+    
+    input, select, textarea {
+        font-size: 16px; /* Prevents iOS zoom on focus */
+    }
+}
+

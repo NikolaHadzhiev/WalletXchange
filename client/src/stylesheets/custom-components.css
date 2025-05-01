@@ -2,6 +2,7 @@
     background-color: #fff;
     box-shadow: 0 0 3px 0 rgba(0, 0, 0, 0.421);
     border-radius: 5%;
+    width: 100%;
 }
 
 .loader-parent {
@@ -49,4 +50,165 @@ table {
 
 .ant-table-cell {
     text-align: center !important;
+}
+
+/* Responsive styles for mobile */
+@media (max-width: 768px) {
+    .card {
+        width: 100%;
+        border-radius: 10px;
+        padding: 15px;
+    }
+    
+    table {
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
+    }
+    
+    .ant-table {
+        overflow-x: auto;
+    }
+    
+    /* Mobile Register Page Styles */
+    .register-mobile-card {
+        border-radius: 15px;
+        padding: 20px 15px;
+        margin: 10px;
+        max-height: 90vh;
+        overflow-y: auto;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+    
+    .form-section {
+        margin-bottom: 15px;
+        padding-bottom: 15px;
+        border-bottom: 1px solid #eaeaea;
+    }
+    
+    .form-section:last-child {
+        border-bottom: none;
+    }
+    
+    .section-header {
+        background-color: var(--primary);
+        color: white;
+        padding: 8px 12px;
+        border-radius: 5px;
+        margin-bottom: 15px;
+        font-size: 14px;
+        text-transform: uppercase;
+    }
+    
+    /* Fix for Ant Design form validation messages on mobile */
+    .ant-form-item {
+        margin-bottom: 15px;
+    }
+    
+    .ant-form-item-explain-error {
+        font-size: 12px;
+    }
+    
+    /* Fix for small screens to prevent horizontal scrolling */
+    .register-mobile-container {
+        max-width: 100%;
+        overflow-x: hidden;
+    }
+    
+    /* Improved mobile steps display */
+    .ant-steps {
+        margin-bottom: 20px !important;
+    }
+    
+    .ant-steps-item-title {
+        font-size: 0.75rem !important;
+    }
+    
+    /* Make form labels more readable on mobile */
+    .ant-form-item-label > label {
+        font-weight: 600;
+        color: #333;
+    }
+    
+    /* Improve form inputs on mobile */
+    .ant-input, .ant-input-password, .ant-select-selector {
+        border-radius: 6px !important;
+        padding: 10px 12px !important;
+        height: auto !important;
+    }
+    
+    .ant-input-password .ant-input {
+        padding: 0 !important;
+    }
+    
+    .ant-select-selector {
+        padding: 4px 12px !important;
+    }
+    
+    /* Make the mobile min-height work better for smaller screens */
+    .min-h-screen {
+        min-height: 100vh !important;
+        padding-top: 10px;
+        padding-bottom: 10px;
+    }
+}
+
+/* Home Page mobile styles */
+@media (max-width: 768px) {
+    .home-tile {
+        border-radius: 12px;
+        padding: 15px;
+        margin-top: 15px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+
+    .home-user-info {
+        border-radius: 12px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        padding: 15px;
+        margin-top: 15px;
+    }
+    
+    .home-info-row {
+        padding: 10px 0;
+        border-bottom: 1px solid rgba(0,0,0,0.05);
+    }
+    
+    .home-info-row:last-child {
+        border-bottom: none;
+    }
+    
+    .home-label {
+        font-weight: 600;
+        margin-bottom: 5px;
+    }
+    
+    .home-value {
+        color: #555;
+    }
+
+    .home-balance {
+        font-size: 1.5rem !important;
+        font-weight: bold;
+        color: white !important;
+    }
+    
+    .home-account-label {
+        opacity: 0.9;
+    }
+
+    .home-buttons-container {
+        display: grid;
+        grid-gap: 10px;
+        width: 100%;
+    }
+    
+    /* Page title for home */
+    .home-page-title {
+        font-size: 1.2rem !important;
+        text-align: center;
+        margin-bottom: 10px;
+        padding: 0 10px;
+        line-height: 1.4;
+    }
 }

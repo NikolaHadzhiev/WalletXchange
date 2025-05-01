@@ -480,7 +480,7 @@ function ReportsPage() {
       <div className="flex justify-between items-center">
         <PageTitle title="Financial Reports" />
         
-        <div>
+        <div className="report-filters">
           <Space size="middle" align="center">
             <Space>              
               <Select

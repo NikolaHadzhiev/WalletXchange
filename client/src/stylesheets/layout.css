@@ -49,6 +49,7 @@
 
 .body {
     width: 100%;
+    overflow-x: hidden;
 }
 
 .header {
@@ -69,12 +70,14 @@
     padding: 0;
     height: 100vh;
     gap: 0;
+    overflow-x: hidden;
   }
+  
   .sidebar {
     position: fixed;
     left: 0;
     bottom: 0;
-    width: 100vw;
+    width: 100%;
     height: auto;
     border-radius: 0;
     flex-direction: row;
@@ -82,14 +85,16 @@
     padding: 0;
     background-color: var(--primary);
   }
+  
   .menu {
     flex-direction: row;
     justify-content: space-around;
     align-items: center;
-    width: 100vw;
+    width: 100%;
     gap: 0;
     padding: 0.5rem 0;
   }
+  
   .menu-item {
     flex-direction: column;
     justify-content: center;
@@ -98,9 +103,47 @@
     width: 100%;
     font-size: 0.9rem;
   }
+  
+  .menu-item i {
+    font-size: 1.2rem;
+  }
+  
+  .menu-item h1 {
+    font-size: 0.7rem !important;
+    margin: 0;
+    padding: 0;
+  }
+  
+  .active-menu-item {
+    border-width: 1px;
+    border-radius: 5px;
+  }
+  
   .body {
     padding-bottom: 60px; /* space for bottom bar */
-    width: 100vw;
+    width: 100%;
+  }
+  
+  .header {
+    padding: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  
+  .header h1.text-xl {
+    font-size: 1rem;
+    margin: 0;
+  }
+  
+  .header h1.text-sm {
+    font-size: 0.8rem;
+    margin: 0;
+  }
+  
+  .content {
+    padding: 10px;
+    padding-bottom: 70px;
   }
 }
 
@@ -113,6 +156,7 @@
     padding: 15px;
     gap: 15px;
   }
+  
   .sidebar {
     position: static;
     width: auto;
@@ -126,6 +170,7 @@
     z-index: 1;
     align-items: center;
   }
+  
   .menu {
     flex-direction: column;
     gap: 15px;
@@ -136,6 +181,7 @@
     flex: 1;
     display: flex;
   }
+  
   .body {
     padding-bottom: 0;
     width: 100%;

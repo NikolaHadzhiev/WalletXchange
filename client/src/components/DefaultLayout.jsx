@@ -1,12 +1,33 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { axiosInstance } from "../api/index";
 
 function DefaultLayout({ children }) {
   const [collapsed, setCollapsed] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const { user } = useSelector((state) => state.users);
   const navigate = useNavigate();
+
+  // Add window resize listener for mobile detection
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+      if (window.innerWidth <= 768) {
+        setCollapsed(true);
+      } else {
+        setCollapsed(false);
+      }
+    };
+
+    window.addEventListener("resize", handleResize);
+    handleResize(); // Initialize on mount
+    
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
+  
   const generateMenu = (isAdmin) => {
     const commonMenuItems = [
       {
@@ -62,7 +83,7 @@ function DefaultLayout({ children }) {
     };
   
     // Combine common menu items, admin-specific items, and the logout item
-    return [...commonMenuItems, ...(isAdmin ? adminMenuItems : []), logoutMenuItem];
+    return [...(!isAdmin ? commonMenuItems : []), ...(isAdmin ? adminMenuItems : []), logoutMenuItem];
   };
   
   const menuToRender = generateMenu(user?.isAdmin);
@@ -81,7 +102,7 @@ function DefaultLayout({ children }) {
                 onClick={item.onClick}
               >
                 {item.icon}
-                {!collapsed && (
+                {(!collapsed || isMobile) && (
                   <h1 className="text-white text-sm">{item.title}</h1>
                 )}
               </div>
@@ -92,20 +113,24 @@ function DefaultLayout({ children }) {
       <div className="body">
         <div className="header flex justify-between items-center">
           <div className="text-white">
-            {!collapsed && (
-              <i
-                className="ri-close-line"
-                onClick={() => setCollapsed(!collapsed)}
-              ></i>
-            )}
-            {collapsed && (
-              <i
-                className="ri-menu-2-line"
-                onClick={() => setCollapsed(!collapsed)}
-              ></i>
+            {!isMobile && (
+              <>
+                {!collapsed && (
+                  <i
+                    className="ri-close-line"
+                    onClick={() => setCollapsed(!collapsed)}
+                  ></i>
+                )}
+                {collapsed && (
+                  <i
+                    className="ri-menu-2-line"
+                    onClick={() => setCollapsed(!collapsed)}
+                  ></i>
+                )}
+              </>
             )}
           </div>
-          <div className="ml-20-p">
+          <div className={isMobile ? "" : "ml-20-p"}>
             <h1 className="text-xl text-white">WALLET X CHANGE</h1>
           </div>
           <div>

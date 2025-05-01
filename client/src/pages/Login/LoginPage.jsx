@@ -11,6 +11,20 @@ function Login() {
   const dispatch = useDispatch();
   const [isLockedOut, setIsLockedOut] = useState(false);
   const [lockoutTime, setLockoutTime] = useState(0);
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+
+    window.addEventListener("resize", handleResize);
+    handleResize(); // Initialize on mount
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
 
   useEffect(() => {
     let interval;
@@ -34,10 +48,10 @@ function Login() {
   const onFinish = async (values) => {
     try {
       // Sanitize email and password
-    const sanitizedValues = {
-      email: sanitizeInput(values.email),
-      password: sanitizeInput(values.password),
-    };
+      const sanitizedValues = {
+        email: sanitizeInput(values.email),
+        password: sanitizeInput(values.password),
+      };
 
       dispatch(ShowLoading());
       const response = await LoginUser(sanitizedValues);
@@ -72,9 +86,9 @@ function Login() {
 
   return (
     <div className="bg-primary flex items-center justify-center h-screen">
-      <div className="card w-400 p-2">
+      <div className={`card ${isMobile ? 'p-3 sm-w-100 m-2' : 'w-400 p-2'}`}>
         <div className="flex items-center justify-between">
-          <h1 className="text-xl">WALLETXCHANGE - LOGIN</h1>
+          <h1 className={`${isMobile ? 'text-lg' : 'text-xl'} sm-text-center w-100`}>WALLETXCHANGE - LOGIN</h1>
         </div>
         <hr />
         <Form layout="vertical" onFinish={onFinish} autoComplete="off">
@@ -122,7 +136,7 @@ function Login() {
           </button>
 
           <h1
-            className="text-sm underline mt-2"
+            className={`${isMobile ? 'text-center' : ''} text-sm underline mt-2`}
             onClick={() => navigate("/register")}
           >
             Not a member? Click here to register

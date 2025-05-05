@@ -17,12 +17,13 @@ import StripeDepositForm from "../../components/Deposit/StripeDepositForm";
 import PaypalDepositForm from "../../components/Deposit/PaypalDepositForm";
 import VerificationCodeModal from "../../components/Deposit/VerificationCodeModal";
 
+
 function DepositModal({ showDepositModal, setShowDepositModal, reloadData }) {
   const [form] = Form.useForm();
   const dispatch = useDispatch();
   const { user } = useSelector((state) => state.users);
   const navigate = useNavigate();
-  
+
   // State variables
   const [verificationCode, setVerificationCode] = useState("");
   const [showVerificationModal, setShowVerificationModal] = useState(false);
@@ -33,12 +34,12 @@ function DepositModal({ showDepositModal, setShowDepositModal, reloadData }) {
 
   // Set the email value in the form when user data is available or when modal becomes visible
   useEffect(() => {
-    if (user?.email && showDepositModal) {
+    if (user?.email && showDepositModal && !showPaypalVerificationModal) {
       form.setFieldsValue({ 
         paypalEmail: user.email 
       });
     }
-  }, [user, showDepositModal, form]);
+  }, [user, showDepositModal, showPaypalVerificationModal, form]);
 
   // Check for pending PayPal deposit when deposit modal opens
   useEffect(() => {
@@ -52,13 +53,17 @@ function DepositModal({ showDepositModal, setShowDepositModal, reloadData }) {
             sessionStorage.removeItem('pendingPayPalDeposit');
             return;
           }
-          
+
           const { orderId, amount, uid } = decryptedData;
-          
+
           // Only show if for this user (expiration is already checked in decryptData)
           if (uid === user._id) {
             setPaypalOrderId(orderId);
             form.setFieldsValue({ amount });
+            // Also restore paypalEmail if possible
+            if (user?.email) {
+              form.setFieldsValue({ paypalEmail: user.email });
+            }
             setShowPaypalVerificationModal(true);
           } else {
             // Clean up invalid data
@@ -181,20 +186,29 @@ function DepositModal({ showDepositModal, setShowDepositModal, reloadData }) {
         message.error("No PayPal order found. Please try again.");
         return;
       }
-      
-      const email = form.getFieldValue("paypalEmail");
-      
+
+      let email = form.getFieldValue("paypalEmail");
+      // If not set, try to use user.email
+      if (!email && user?.email) {
+        email = user.email;
+        form.setFieldsValue({ paypalEmail: user.email });
+      }
+      if (!email) {
+        message.error("Please enter your notification email.");
+        return;
+      }
+
       dispatch(ShowLoading());
-      
+
       // Now request the verification code to be sent via email
       const response = await RequestPaypalVerificationCode({
         userId: user._id,
         email,
         orderID: paypalOrderId
       });
-      
+
       dispatch(HideLoading());
-      
+
       if (response.success) {
         message.success("Verification code sent to your email. Please check and enter it below.");
       } else {
@@ -248,65 +262,68 @@ function DepositModal({ showDepositModal, setShowDepositModal, reloadData }) {
     setPaypalOrderId(orderId);
   };
 
+  // Only show the Deposit modal if the PayPal verification modal is not open
   return (
     <>
-      <Modal
-        title="Deposit"
-        open={showDepositModal}
-        onCancel={() => setShowDepositModal(false)}
-        footer={null}
-      >
-        <div className="flex-col gap-1">
-          <Form layout="vertical" form={form}>
-            <Form.Item
-              label="Amount"
-              name="amount"
-              rules={[{ required: true, message: "Please input amount" }]}
-            >
-              <InputNumber min={1} controls={false} />
-            </Form.Item>
-            
-          {paymentMethod === 'paypal' && (
-            <Form.Item
-              label="User Email for notification"
-              name="paypalEmail"
-              rules={[{ required: true, message: "Please input your PayPal email" }]}
-            >              
-              <Input />
-            </Form.Item>
-          )}
-
-            <PaymentMethodSelector 
-              paymentMethod={paymentMethod} 
-              setPaymentMethod={setPaymentMethod} 
-            />
-            
-            <div className="flex justify-end gap-1">
-              <button
-                className="primary-outlined-btn"
-                onClick={() => setShowDepositModal(false)}
+      {!showPaypalVerificationModal && (
+        <Modal
+          title="Deposit"
+          open={showDepositModal}
+          onCancel={() => setShowDepositModal(false)}
+          footer={null}
+        >
+          <div className="flex-col gap-1">
+            <Form layout="vertical" form={form}>
+              <Form.Item
+                label="Amount"
+                name="amount"
+                rules={[{ required: true, message: "Please input amount" }]}
               >
-                Cancel
-              </button>
-              
-              {paymentMethod === 'stripe' && (
-                <StripeDepositForm 
-                  form={form} 
-                  onDepositSuccess={() => setShowVerificationModal(true)} 
-                />
-              )}
+                <InputNumber min={1} controls={false} />
+              </Form.Item>
 
-              {paymentMethod === 'paypal' && (
-                <PaypalDepositForm 
-                  form={form} 
-                  user={user} 
-                  onPaypalOrderCreated={handlePaypalOrderCreated} 
-                />
-              )}
-            </div>
-          </Form>
-        </div>
-      </Modal>
+            {paymentMethod === 'paypal' && (
+              <Form.Item
+                label="User Email for notification"
+                name="paypalEmail"
+                rules={[{ required: true, message: "Please input your PayPal email" }]}
+              >              
+                <Input />
+              </Form.Item>
+            )}
+
+              <PaymentMethodSelector 
+                paymentMethod={paymentMethod} 
+                setPaymentMethod={setPaymentMethod} 
+              />
+
+              <div className="flex justify-end gap-1">
+                <button
+                  className="primary-outlined-btn"
+                  onClick={() => setShowDepositModal(false)}
+                >
+                  Cancel
+                </button>
+
+                {paymentMethod === 'stripe' && (
+                  <StripeDepositForm 
+                    form={form} 
+                    onDepositSuccess={() => setShowVerificationModal(true)} 
+                  />
+                )}
+
+                {paymentMethod === 'paypal' && (
+                  <PaypalDepositForm 
+                    form={form} 
+                    user={user} 
+                    onPaypalOrderCreated={handlePaypalOrderCreated} 
+                  />
+                )}
+              </div>
+            </Form>
+          </div>
+        </Modal>
+      )}
 
       {/* Stripe verification modal */}
       <VerificationCodeModal
@@ -334,6 +351,8 @@ function DepositModal({ showDepositModal, setShowDepositModal, reloadData }) {
         setVerificationCode={setPaypalVerificationCode}
         requestVerificationCode={requestVerificationCode}
         showRequestButton={true}
+        // Make sure this modal is always on top
+        modalProps={{ zIndex: 2000 }}
       />
     </>
   );

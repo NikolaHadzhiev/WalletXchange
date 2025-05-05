@@ -79,7 +79,7 @@ router.post("/create-paypal-order", authenticationMiddleware, async (req, res) =
       return res.send({ message: "Missing return or cancel URL", data: null, success: false });
     }
     // Create PayPal order
-    const request = new paypal.orders.OrdersCreateRequest();
+    const request = new checkoutSdk.orders.OrdersCreateRequest();
     request.prefer("return=representation");
     request.requestBody({
       intent: "CAPTURE",

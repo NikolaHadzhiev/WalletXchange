@@ -19,6 +19,8 @@ const path = require("path");
 
 const app = express();
 
+app.set('trust proxy', 1);
+
 app.use(cors({
   origin: process.env.cors_url,
   methods: ["GET", "POST", "DELETE", "OPTIONS"],
